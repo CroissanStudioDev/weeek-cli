@@ -11,6 +11,7 @@
  * plausible value survives the path from argv to request body.
  */
 
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { GLOBAL_FLAGS } from '../../src/cli/global-flags.ts'
 import { OPERATIONS } from '../../src/core/api/generated/operations.ts'
@@ -100,4 +101,59 @@ describe('enums are discoverable', () => {
 
     expect(winStatus?.enum).toEqual(['won', 'lost', 'archived'])
   })
+})
+
+describe('a flag goes where the spec put the value', () => {
+  // The previous sweeps asked whether a flag was reachable and whether its value survived
+  // validation. Both said yes for `--content-type`, which the generator invented out of a
+  // header parameter and then sent as `?Content-Type=…`. Reachability is not correctness of
+  // destination, so this checks the destination directly, against the spec.
+  const spec = JSON.parse(
+    readFileSync(new URL('../../spec/weeek-openapi.json', import.meta.url), 'utf8'),
+  ) as {
+    paths: Record<string, Record<string, { parameters?: { name: string; in: string }[] }>>
+  }
+
+  function declared(operation: (typeof OPERATIONS)[number]): { name: string; in: string }[] {
+    // The registry normalises `/crm/statuses{id}`; look the operation up under either form.
+    const item = spec.paths[operation.path] ?? spec.paths[operation.path.replace('/{', '{')] ?? {}
+    return item[operation.method.toLowerCase()]?.parameters ?? []
+  }
+
+  it.each(OPERATIONS.map((operation) => [operation.command.join(' '), operation] as const))(
+    '%s',
+    (_command, operation) => {
+      const generated = new Set(operation.params.map((param) => param.name))
+
+      for (const param of declared(operation)) {
+        if (param.in === 'path' || param.in === 'query') {
+          expect(generated.has(param.name), `dropped ${param.in} ${param.name}`).toBe(true)
+        } else {
+          // Headers and cookies are the client's business. A header the user must pass by hand
+          // is not a filter, and one emitted as a query flag is a wrong request.
+          expect(generated.has(param.name), `${param.in} ${param.name} became a flag`).toBe(false)
+        }
+      }
+    },
+  )
+})
+
+describe('multipart uploads offer --file and nothing that pretends to be it', () => {
+  const multipart = OPERATIONS.filter((operation) => operation.body?.contentType === 'multipart')
+
+  it('there are multipart operations to check', () => {
+    expect(multipart.length).toBeGreaterThan(0)
+  })
+
+  it.each(multipart.map((operation) => [operation.command.join(' '), operation] as const))(
+    '%s',
+    (_command, operation) => {
+      // The bytes of a file do not fit in argv. `--file <path...>` reads and streams them;
+      // the spec's binary part must not also surface as a string flag, least of all a required
+      // one, which is how `--files[] <value> (string, required)` used to read in --help.
+      for (const field of operation.body?.fields ?? []) {
+        expect(field.name, 'binary part offered as a string flag').not.toMatch(/^files?(\[\])?$/i)
+      }
+    },
+  )
 })

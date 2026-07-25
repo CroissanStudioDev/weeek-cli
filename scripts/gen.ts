@@ -209,6 +209,12 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
     for (const raw of (op.parameters ?? []) as Json[]) {
       const p = resolveRef(raw) ?? raw
       const schema = resolveRef(p.schema) ?? p.schema
+      // Only `path` and `query` become CLI surface. The spec declares a `Content-Type` header
+      // parameter on two tag operations; treating everything non-path as a query parameter
+      // turned it into `--content-type`, which then shipped as `?Content-Type=…`. Headers are
+      // the client's business — it sets its own — and a header the user must pass by hand is
+      // not a filter. `cookie` is excluded for the same reason.
+      if (p.in !== 'path' && p.in !== 'query') continue
       const where = p.in === 'path' ? 'path' : 'query'
       const meta: ParamMeta = {
         name: p.name,
@@ -250,24 +256,35 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
         required: op.requestBody.required === true,
         // Types travel with each field so the CLI knows which flags must be parsed as JSON:
         // an array field handed a bare string is rejected by zod before it ever ships.
-        fields: Object.entries((schema?.properties ?? {}) as Json).map(([name, sub]) => {
-          const property = (resolveRef(sub as Json) ?? sub) as Json
-          const field: BodyFieldMeta = {
-            name,
-            type: schemaType(property),
-            required: requiredFields.includes(name),
-            // Renamed when the API's own name is a CLI flag — see global-flags.ts. Renaming
-            // here rather than in the command builder keeps `weeek schema --json`, shell
-            // completion and `--help` naming the same flag.
-            cli: flagName(toKebab(name), 'body'),
-          }
-          // Without this the only hint that `--win-status` takes won|lost|archived was the
-          // rejection message from zod, and only after a wrong guess.
-          if (Array.isArray(property.enum) && property.enum.length > 0) {
-            field.enum = property.enum as (string | number)[]
-          }
-          return field
-        }),
+        fields: Object.entries((schema?.properties ?? {}) as Json)
+          .filter(([, sub]) => {
+            // The binary part of a multipart body is carried by `--file <path...>`, which reads
+            // the file and streams it. Offering it a second time as a string flag (`--files[]`,
+            // marked required) advertised something that cannot work — a file's bytes do not fit
+            // in argv. OpenAPI 3.1 marks the part with contentMediaType; 3.0 used format: binary.
+            const property = (resolveRef(sub as Json) ?? sub) as Json
+            const binary =
+              property.format === 'binary' || typeof property.contentMediaType === 'string'
+            return !(isMultipart && binary)
+          })
+          .map(([name, sub]) => {
+            const property = (resolveRef(sub as Json) ?? sub) as Json
+            const field: BodyFieldMeta = {
+              name,
+              type: schemaType(property),
+              required: requiredFields.includes(name),
+              // Renamed when the API's own name is a CLI flag — see global-flags.ts. Renaming
+              // here rather than in the command builder keeps `weeek schema --json`, shell
+              // completion and `--help` naming the same flag.
+              cli: flagName(toKebab(name), 'body'),
+            }
+            // Without this the only hint that `--win-status` takes won|lost|archived was the
+            // rejection message from zod, and only after a wrong guess.
+            if (Array.isArray(property.enum) && property.enum.length > 0) {
+              field.enum = property.enum as (string | number)[]
+            }
+            return field
+          }),
       }
     }
 

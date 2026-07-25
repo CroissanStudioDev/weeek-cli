@@ -34,15 +34,23 @@ export function schemaCommand(deps: () => CommandDeps): Command {
             flag: `--${p.cli}`,
             type: p.type,
             required: p.required,
+            // Allowed values belong here as much as in `--help`: a caller reading the registry
+            // instead of scraping help text should not have to learn an enum by guessing wrong.
+            ...(p.enum ? { enum: p.enum } : {}),
           })),
         bodyFields: (op.body?.fields ?? []).map((f) => ({
           flag: `--${f.cli}`,
           field: f.name,
           type: f.type,
           required: f.required,
+          ...(f.enum ? { enum: f.enum } : {}),
         })),
         paginated: op.paginated,
         binary: op.binary,
+        // The file part of a multipart body is not a flag in `bodyFields` — it is `--file
+        // <path...>`, which reads the file. Without this marker the registry would describe an
+        // upload as a body with no fields at all.
+        multipart: op.body?.contentType === 'multipart',
       }))
 
       if (options.command) {

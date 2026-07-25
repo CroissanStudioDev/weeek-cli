@@ -1630,14 +1630,7 @@ export const OPERATIONS: readonly OperationMeta[] = [
     "body": {
       "contentType": "multipart",
       "required": false,
-      "fields": [
-        {
-          "name": "files[]",
-          "type": "string",
-          "required": true,
-          "cli": "files[]"
-        }
-      ]
+      "fields": []
     },
     "envelopeKey": "data",
     "hasMoreKey": null,
@@ -5639,13 +5632,6 @@ export const OPERATIONS: readonly OperationMeta[] = [
         "type": "integer",
         "required": true,
         "cli": "id"
-      },
-      {
-        "name": "Content-Type",
-        "in": "query",
-        "type": "string",
-        "required": false,
-        "cli": "content-type"
       }
     ],
     "body": null,
@@ -5692,13 +5678,6 @@ export const OPERATIONS: readonly OperationMeta[] = [
         "type": "string",
         "required": true,
         "cli": "id"
-      },
-      {
-        "name": "Content-Type",
-        "in": "query",
-        "type": "string",
-        "required": false,
-        "cli": "content-type"
       }
     ],
     "body": {
@@ -5827,14 +5806,7 @@ export const OPERATIONS: readonly OperationMeta[] = [
     "body": {
       "contentType": "multipart",
       "required": false,
-      "fields": [
-        {
-          "name": "files[]",
-          "type": "string",
-          "required": true,
-          "cli": "files[]"
-        }
-      ]
+      "fields": []
     },
     "envelopeKey": "data",
     "hasMoreKey": null,
