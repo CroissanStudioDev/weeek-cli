@@ -9,6 +9,7 @@
 import { WeeekError } from '../core/api/errors.ts'
 
 export const EXIT = {
+  // временная строка для проверки CI-гейта
   /** Success, including a successful command that found nothing. */
   ok: 0,
   /** Anything unclassified. */
