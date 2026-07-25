@@ -70,6 +70,22 @@ Conventional-ish commit subjects are appreciated but not enforced. Releases use
 describe the change in a sentence a user would understand. Maintainers merge the release PR;
 publishing happens from CI via npm Trusted Publishing.
 
+### For maintainers: the first publish cannot use OIDC
+
+npm configures a trusted publisher on a package's settings page, and that page does not exist
+until the package does — unlike PyPI, there are no "pending publishers"
+([npm/cli#8544](https://github.com/npm/cli/issues/8544)). Bootstrap once:
+
+1. `npm publish` the `0.0.0` placeholder from a clean checkout, authenticated with a granular
+   token. (`package.json` is already at `0.0.0`; the first changeset takes it to `0.1.0`.)
+2. On npmjs.com → the package → **Settings → Trusted Publisher**, point it at
+   `CroissanStudioDev/weeek-cli` and the workflow file `release.yml`. Both must match exactly.
+3. Revoke the granular token. Every release after this one goes through CI with no long-lived
+   secret in the repository.
+
+Note also that pushing to `main` does not publish: `.changeset/*` entries make the action open a
+"Version Packages" PR, and merging *that* is what triggers the publish.
+
 ## Code of conduct
 
 By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).

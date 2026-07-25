@@ -92,9 +92,13 @@ export const BOOLEAN_WIRE_FORMAT: { style: 'numeric' | 'literal'; confidence: Co
  * `bun run spec:probe`-style calls against a live workspace). Left alone, `weeek board-column
  * list` fails on its first use with a message naming a wire parameter instead of a flag.
  *
- * Keyed by `METHOD /path`, listing parameter names the API actually requires. Add an entry only
- * with an observed response — this table makes commands stricter, so a wrong guess here blocks
- * a request the API would have accepted.
+ * Keyed by `METHOD /path` **as the spec writes it**, i.e. before PATH_FIXES is applied — codegen
+ * builds the lookup key from the raw path. An entry for `GET /crm/statuses/{id}` would therefore
+ * never match; it would have to be keyed `GET /crm/statuses{id}`.
+ *
+ * Lists parameter names the API actually requires. Add an entry only with an observed response —
+ * this table makes commands stricter, so a wrong guess here blocks a request the API would have
+ * accepted.
  */
 export const REQUIRED_QUERY_OVERRIDES: Record<
   string,

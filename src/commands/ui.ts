@@ -111,7 +111,7 @@ export function uiCommand(deps: () => CommandDeps): Command {
   return new Command('ui')
     .description('interactive kanban board in the terminal')
     .option('--board <id>', 'open a specific board')
-    .option('--project <id>', 'restrict to one project')
+    .option('--project <id>', 'open a board from this project (default: the first one)')
     .action(async (options: { board?: string; project?: string }) => {
       const { global } = deps()
 

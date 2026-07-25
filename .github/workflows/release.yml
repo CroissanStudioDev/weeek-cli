@@ -47,9 +47,9 @@ jobs:
           bun run gen
           git diff --exit-code -- src/core/api/generated
 
-      # The published bundle is NOT built here: `changeset version` bumps package.json after
-      # this point, and a bundle built now would bake the old version into `weeek --version`.
-      # `prepublishOnly` rebuilds during `changeset publish`, after the bump.
+      # The published bundle is deliberately NOT built as a step here: `changeset version` bumps
+      # package.json after this point, and a bundle built now would bake the old version into
+      # `weeek --version`. The build happens inside the `publish` input below, after the bump.
 
       # Either opens/updates the "Version Packages" PR, or — when that PR has been merged and
       # changesets remain consumed — publishes. `publish` uses npm underneath, so the OIDC
@@ -61,7 +61,11 @@ jobs:
         uses: changesets/action@v1
         with:
           version: bunx changeset version
-          publish: bunx changeset publish
+          # The build runs *inside* the publish input on purpose. This input only executes on
+          # the branch where package.json has already been bumped, so the bundle is built at the
+          # version being published — `prepublishOnly` is the belt, this is the braces, and
+          # which lifecycle hooks fire depends on which package manager changesets picks.
+          publish: bun run build && bunx changeset publish
           commit: 'chore: version packages'
           title: 'chore: version packages'
         env:
