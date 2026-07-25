@@ -131,7 +131,8 @@ Verified against the live API:
 | Array query parameters | `tags[]=1&tags[]=2`. `tags=1,2` and repeated `tags=1&tags=2` are both rejected with 422. |
 | Booleans | `0`/`1`. `completed=true` is rejected with 422 — it does not silently skip the filter. |
 | `/crm/statuses{id}` | Really is a typo: `/crm/statuses/1` answers "Record not found", the unslashed form answers "route could not be found". |
-| "Not found" | Arrives as **HTTP 400** with `{"code":1000001,"message":"Model not found"}`. The CLI reads the body code, so `weeek task get <missing>` still exits 4. |
+| "Not found" | Two shapes: **HTTP 400** with `{"code":1000001,"message":"Model not found"}` for tasks/projects/deals, and a plain **404** for `/ws/tags/{id}`. The CLI exits 4 for both. |
+| Deletion | Soft, at least for tags: after `tag delete` the tag is gone from `tag list` but `tag get <id>` still answers 200. |
 | Validation errors | `{"success":false,"errors":{"field":["…"]}}`; the generic `message` alongside it does not name the field, so the field map wins. |
 | Required filters | `GET /tm/board-columns` needs `boardId` even though the spec calls it optional. Checked locally, before the request. |
 

@@ -26,6 +26,10 @@ export interface Streams {
   isTTY: boolean
 }
 
+export function isBrokenPipe(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'EPIPE'
+}
+
 export function defaultStreams(): Streams {
   return { stdout: process.stdout, stderr: process.stderr, isTTY: process.stdout.isTTY === true }
 }
@@ -210,6 +214,13 @@ export class Output {
   }
 
   private write(stream: NodeJS.WritableStream, text: string): void {
-    stream.write(text)
+    try {
+      stream.write(text)
+    } catch (error) {
+      // `weeek schema --json | head -1` — or any consumer that exits before we finish writing —
+      // closes the pipe under us. Printing a stack trace about it is exactly wrong: the shell
+      // pipeline behaved normally, and the CLI's own promise is that stdout is safe to pipe.
+      if (!isBrokenPipe(error)) throw error
+    }
   }
 }

@@ -12,6 +12,7 @@ import { EXIT, EXIT_CODE_HELP, exitCodeFor } from './cli/exit-codes.ts'
 import {
   defaultFormat,
   defaultStreams,
+  isBrokenPipe,
   Output,
   type OutputFormat,
   type Streams,
@@ -159,6 +160,16 @@ function overrideExitRecursively(command: Command): void {
 }
 
 export async function main(argv: string[] = process.argv): Promise<number> {
+  // A consumer that exits first — `| head -1`, a `jq` that rejects its own arguments, `less`
+  // quit early — closes the pipe mid-write. Node surfaces that as an asynchronous EPIPE with a
+  // full stack trace on stderr, which reads as a crash in the CLI when nothing went wrong in
+  // it. Leaving quietly is what every other well-behaved pipeline member does.
+  for (const stream of [process.stdout, process.stderr]) {
+    stream.on('error', (error: NodeJS.ErrnoException) => {
+      if (isBrokenPipe(error)) process.exit(EXIT.ok)
+    })
+  }
+
   const program = createProgram()
 
   // Parsed lazily inside the action so that --help never constructs an Output or touches env.

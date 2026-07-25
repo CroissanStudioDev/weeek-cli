@@ -174,3 +174,33 @@ describe.skipIf(!built)('--token-file reaches every command that resolves a toke
     expect(code).toBe(0)
   })
 })
+
+describe.skipIf(!built)('a consumer that exits first is not the CLI crashing', () => {
+  // `weeek schema --json | head -1` and friends close the pipe while output is still being
+  // written. Node reports that as an asynchronous EPIPE with a stack trace on stderr, which
+  // looked like a crash in a tool whose stated contract is "stdout is always safe to pipe".
+  it('writes nothing to stderr when stdout is closed early', () => {
+    const result = spawnSync(
+      '/bin/sh',
+      ['-c', `${JSON.stringify(process.execPath)} ${JSON.stringify(CLI)} schema --json | head -1`],
+      { encoding: 'utf8', env: { ...process.env, WEEEK_CONFIG_DIR: configDir } },
+    )
+
+    expect(result.stderr).toBe('')
+    expect(result.stdout.trim()).toBe('[')
+  })
+
+  it('survives a consumer that dies immediately', () => {
+    const result = spawnSync(
+      '/bin/sh',
+      [
+        '-c',
+        `${JSON.stringify(process.execPath)} ${JSON.stringify(CLI)} schema --json 2>&1 >/dev/null | true`,
+      ],
+      { encoding: 'utf8', env: { ...process.env, WEEEK_CONFIG_DIR: configDir } },
+    )
+
+    expect(result.stdout).not.toContain('EPIPE')
+    expect(result.stderr).not.toContain('EPIPE')
+  })
+})
