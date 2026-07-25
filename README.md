@@ -67,10 +67,10 @@ Path parameters are positional, everything else is a flag:
 ```bash
 weeek project list --output table
 weeek task get 8123
-weeek task create --title "Write the changelog" --project-id 4
+weeek task create --title "Write the changelog" --locations '[{"projectId":4,"boardColumnId":null}]'
 weeek task complete 8123
 weeek task list --project-id 4 --all-pages --json      # follows every page
-weeek crm deal list --json | jq '.[] | {id, title, price}'
+weeek crm status deal list 12 --json | jq '.[] | {id, title, price}'
 weeek attachment download f1e2d3 --output-file logo.png
 ```
 

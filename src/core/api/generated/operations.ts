@@ -1169,7 +1169,9 @@ export const OPERATIONS: readonly OperationMeta[] = [
         "description": "Sorts in ascending order of the specified parameter. To sort in descending order, prepend a minus sign to the parameter, for example `-alphabet`",
         "enum": [
           "alphabet",
-          "updatedAt"
+          "updatedAt",
+          "-alphabet",
+          "-updatedAt"
         ]
       }
     ],
@@ -3446,7 +3448,9 @@ export const OPERATIONS: readonly OperationMeta[] = [
         "description": "Sorts in ascending order of the specified parameter. To sort in descending order, prepend a minus sign to the parameter, for example `-alphabet`",
         "enum": [
           "alphabet",
-          "updatedAt"
+          "updatedAt",
+          "-alphabet",
+          "-updatedAt"
         ]
       }
     ],
@@ -3931,7 +3935,12 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "amount",
           "commented",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "-title",
+          "-amount",
+          "-commented",
+          "-createdAt",
+          "-updatedAt"
         ]
       }
     ],
@@ -5927,7 +5936,15 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "overdue",
           "created",
           "date",
-          "start"
+          "start",
+          "-name",
+          "-type",
+          "-priority",
+          "-duration",
+          "-overdue",
+          "-created",
+          "-date",
+          "-start"
         ]
       },
       {

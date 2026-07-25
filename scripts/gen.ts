@@ -166,6 +166,23 @@ function envelopeOf(op: Json): {
   return { key: payloadKey, hasMore, isArray, status }
 }
 
+/**
+ * Sort parameters document descending order as a `-` prefix ("prepend a minus sign to the
+ * parameter, for example `-name`") while their enum lists only the ascending forms. Commander
+ * validates against that enum, so `--sort-by -created` — the documented way to sort newest
+ * first — was rejected outright, and descending sort was reachable only through `weeek api`.
+ *
+ * The prefixed forms are added to the enum itself rather than special-cased in the CLI, so
+ * `--help`, shell completion and `weeek schema --json` all agree on what is accepted.
+ */
+function withDescendingVariants(
+  values: (string | number)[],
+  description: string | undefined,
+): (string | number)[] {
+  if (!/minus sign/i.test(description ?? '')) return values
+  return [...values, ...values.map((value) => `-${value}`)]
+}
+
 const operations: OperationMeta[] = []
 
 for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
@@ -196,7 +213,7 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
       }
       if (schema?.items?.type) meta.itemType = schema.items.type
       if (p.description) meta.description = p.description
-      if (schema?.enum) meta.enum = schema.enum
+      if (schema?.enum) meta.enum = withDescendingVariants(schema.enum, p.description)
       // The API takes 0/1 rather than true/false — see overrides: BOOLEAN_WIRE_FORMAT.
       if (meta.type === 'boolean' && BOOLEAN_WIRE_FORMAT.style === 'numeric') {
         meta.wire = 'numeric-bool'
@@ -372,13 +389,22 @@ function zodFor(schema: Json | undefined, depth = 0): string {
   const s = resolveRef(schema)
   if (!s || depth > 6) return 'z.unknown()'
 
-  if (Array.isArray(s.enum) && s.enum.length > 0) {
-    return `z.enum(${JSON.stringify(s.enum.map(String))})`
-  }
-
   // `type: ["string", "null"]` is used throughout this spec; without unwrapping it, every
   // nullable field would silently degrade to z.unknown() and validate nothing.
   const nullable = Array.isArray(s.type) && s.type.includes('null')
+
+  if (Array.isArray(s.enum) && s.enum.length > 0) {
+    // Numeric enums must stay numeric. Stringifying them (`priority: enum [0,1,2,3]` becoming
+    // z.enum(["0",…])) contradicted the field's declared `integer` type, which is what the CLI
+    // coerces the flag to — so `--priority 2` failed validation and the field was reachable
+    // only through `--body`.
+    const numeric = s.enum.every((member) => typeof member === 'number')
+    const inner = numeric
+      ? `z.union([${s.enum.map((member) => `z.literal(${member})`).join(', ')}])`
+      : `z.enum(${JSON.stringify(s.enum.map(String))})`
+    return nullable ? `${inner}.nullable()` : inner
+  }
+
   const inner = zodForType(schemaType(s), s, depth)
   return nullable ? `${inner}.nullable()` : inner
 }

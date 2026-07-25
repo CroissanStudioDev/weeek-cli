@@ -149,15 +149,15 @@ export const BODY_SCHEMAS = {
     "boardColumnId": z.number().int().nullable(),
   })),
     "type": z.enum(["action","meet","call"]).optional(),
-    "priority": z.enum(["0","1","2","3"]).optional(),
+    "priority": z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]).nullable().optional(),
     "customFields": z.object({
 
   }).optional(),
   }),
   "task.update": z.object({
     "title": z.string().nullable().optional(),
-    "priority": z.enum(["0","1","2","3"]).optional(),
-    "type": z.enum(["action","meet","call"]).optional(),
+    "priority": z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]).nullable().optional(),
+    "type": z.enum(["action","meet","call"]).nullable().optional(),
     "startDate": z.string().nullable().optional(),
     "dueDate": z.string().nullable().optional(),
     "startDateTime": z.string().nullable().optional(),
@@ -256,7 +256,7 @@ export const BODY_SCHEMAS = {
   "crm.status.deal.create": z.object({
     "title": z.string().nullable().optional(),
     "amount": z.number().nullable().optional(),
-    "winStatus": z.enum(["won","lost","archived"]).optional(),
+    "winStatus": z.enum(["won","lost","archived"]).nullable().optional(),
     "description": z.string().nullable().optional(),
     "assignees": z.array(z.string()).optional(),
     "organizations": z.array(z.string()).optional(),
@@ -269,7 +269,7 @@ export const BODY_SCHEMAS = {
   "crm.deal.update": z.object({
     "title": z.string().nullable().optional(),
     "amount": z.number().nullable().optional(),
-    "winStatus": z.enum(["won","lost","archived"]).optional(),
+    "winStatus": z.enum(["won","lost","archived"]).nullable().optional(),
     "customFields": z.object({
 
   }).optional(),
@@ -277,7 +277,7 @@ export const BODY_SCHEMAS = {
   "crm.deal.patch": z.object({
     "title": z.string().nullable().optional(),
     "amount": z.number().nullable().optional(),
-    "winStatus": z.enum(["won","lost","archived"]).optional(),
+    "winStatus": z.enum(["won","lost","archived"]).nullable().optional(),
     "description": z.string().nullable().optional(),
     "assignees": z.array(z.string()).optional(),
     "organizations": z.array(z.string()).optional(),
