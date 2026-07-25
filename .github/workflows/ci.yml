@@ -22,13 +22,66 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
+      # Built here on purpose: tests/e2e spawn `dist/weeek.js` and skip themselves when it is
+      # absent. Without this they only ever ran on the one Linux job below, so the parts that
+      # are most platform-dependent — path handling, spawning, permissions, stream discipline —
+      # were the parts never exercised on macOS or Windows.
+      - run: bun run build
       - run: bun run test
+
+  coverage:
+    name: coverage gate (src/core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      # Scoped to src/core, because v8 cannot see into the child processes the rest of the
+      # suite spawns — see the comment in vitest.config.ts. Thresholds live there too.
+      - run: bun run test:coverage
+
+  changeset:
+    name: a user-visible change carries a changeset
+    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Releases are cut by changesets: a PR that changes shipped behaviour without one is
+      # published under no version and appears in no changelog. Docs, tests and CI config are
+      # exempt — they change nothing a user installs.
+      - name: check
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE" "$HEAD")
+          shipped=$(printf '%s\n' "$changed" | grep -E '^(src|spec|scripts)/' | grep -v '\.test\.' || true)
+          if [ -z "$shipped" ]; then
+            echo "No shipped code changed — no changeset needed."
+            exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^\.changeset/.+\.md$'; then
+            echo "Changeset present."
+            exit 0
+          fi
+          echo "::error::This PR changes shipped code but adds no changeset. Run \`bunx changeset\` and commit the result, or label the PR if the change is genuinely invisible to users."
+          printf 'Shipped files changed:\n%s\n' "$shipped"
+          exit 1
 
   generated:
     # The point of this job is that generated code cannot drift from the spec, or be edited by
@@ -99,3 +152,44 @@ jobs:
           avg=$(( ($(date +%s%N) - start) / 5000000 ))
           echo "average cold start: ${avg} ms"
           test "$avg" -lt 250 || { echo "::error::cold start ${avg} ms exceeds the budget"; exit 1; }
+
+  binaries:
+    name: standalone binaries build and stay small
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+
+      # Until now the six cross-compiled targets were only ever built during a release, so a
+      # break in them surfaced at the worst possible moment. Building here costs a minute and
+      # moves that discovery to the pull request.
+      - run: bun run build:binaries
+
+      # A budget, not a measurement. Each binary embeds the Bun runtime, so the floor is tens of
+      # megabytes and creeps upward with Bun itself; what this catches is the other thing — a
+      # dependency that pulls in half of npm and doubles what users download.
+      - name: sizes stay under budget
+        env:
+          BUDGET_MB: 130
+        run: |
+          status=0
+          for file in dist/bin/weeek-*; do
+            mb=$(( $(wc -c < "$file") / 1048576 ))
+            printf '%-32s %4s MB\n' "$(basename "$file")" "$mb"
+            if [ "$mb" -gt "$BUDGET_MB" ]; then
+              echo "::error file=$file::$(basename "$file") is ${mb} MB, over the ${BUDGET_MB} MB budget"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: the built binary answers
+        run: |
+          chmod +x dist/bin/weeek-linux-x64
+          ./dist/bin/weeek-linux-x64 --help > /dev/null
+          test "$(./dist/bin/weeek-linux-x64 schema --json | jq 'length')" = "153"

@@ -27,7 +27,7 @@ import {
 } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { tmpdir } from 'node:os'
+import { platform, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { OPERATIONS } from '../../src/core/api/generated/operations.ts'
@@ -734,7 +734,8 @@ describe.skipIf(!built)('weeek.env', () => {
     expect(JSON.parse(variable.stdout).source).toBeNull()
   })
 
-  it('refuses a file other users can read', async () => {
+  // Windows has no POSIX mode bits, so `assertPrivate` deliberately skips there — see config.ts.
+  it.skipIf(platform() === 'win32')('refuses a file other users can read', async () => {
     const dir = project('WEEEK_TOKEN=tok_from_the_file\n', 0o644)
     const { stdout } = await runIn(dir, ['auth', 'status', '--json'])
 

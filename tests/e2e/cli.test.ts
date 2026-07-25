@@ -12,7 +12,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { platform, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -175,32 +175,40 @@ describe.skipIf(!built)('--token-file reaches every command that resolves a toke
   })
 })
 
-describe.skipIf(!built)('a consumer that exits first is not the CLI crashing', () => {
-  // `weeek schema --json | head -1` and friends close the pipe while output is still being
-  // written. Node reports that as an asynchronous EPIPE with a stack trace on stderr, which
-  // looked like a crash in a tool whose stated contract is "stdout is always safe to pipe".
-  it('writes nothing to stderr when stdout is closed early', () => {
-    const result = spawnSync(
-      '/bin/sh',
-      ['-c', `${JSON.stringify(process.execPath)} ${JSON.stringify(CLI)} schema --json | head -1`],
-      { encoding: 'utf8', env: { ...process.env, WEEEK_CONFIG_DIR: configDir } },
-    )
+// POSIX shell pipelines. `cmd.exe` has no equivalent, and the behaviour under test belongs to
+// the pipe, not to the platform — asserting it on Windows would test the harness.
+describe.skipIf(!built || platform() === 'win32')(
+  'a consumer that exits first is not the CLI crashing',
+  () => {
+    // `weeek schema --json | head -1` and friends close the pipe while output is still being
+    // written. Node reports that as an asynchronous EPIPE with a stack trace on stderr, which
+    // looked like a crash in a tool whose stated contract is "stdout is always safe to pipe".
+    it('writes nothing to stderr when stdout is closed early', () => {
+      const result = spawnSync(
+        '/bin/sh',
+        [
+          '-c',
+          `${JSON.stringify(process.execPath)} ${JSON.stringify(CLI)} schema --json | head -1`,
+        ],
+        { encoding: 'utf8', env: { ...process.env, WEEEK_CONFIG_DIR: configDir } },
+      )
 
-    expect(result.stderr).toBe('')
-    expect(result.stdout.trim()).toBe('[')
-  })
+      expect(result.stderr).toBe('')
+      expect(result.stdout.trim()).toBe('[')
+    })
 
-  it('survives a consumer that dies immediately', () => {
-    const result = spawnSync(
-      '/bin/sh',
-      [
-        '-c',
-        `${JSON.stringify(process.execPath)} ${JSON.stringify(CLI)} schema --json 2>&1 >/dev/null | true`,
-      ],
-      { encoding: 'utf8', env: { ...process.env, WEEEK_CONFIG_DIR: configDir } },
-    )
+    it('survives a consumer that dies immediately', () => {
+      const result = spawnSync(
+        '/bin/sh',
+        [
+          '-c',
+          `${JSON.stringify(process.execPath)} ${JSON.stringify(CLI)} schema --json 2>&1 >/dev/null | true`,
+        ],
+        { encoding: 'utf8', env: { ...process.env, WEEEK_CONFIG_DIR: configDir } },
+      )
 
-    expect(result.stdout).not.toContain('EPIPE')
-    expect(result.stderr).not.toContain('EPIPE')
-  })
-})
+      expect(result.stdout).not.toContain('EPIPE')
+      expect(result.stderr).not.toContain('EPIPE')
+    })
+  },
+)

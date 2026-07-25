@@ -1,0 +1,52 @@
+# Static analysis for the code that ships.
+#
+# This package handles a long-lived, unscoped API token and publishes to npm with provenance, so
+# the interesting classes here are the ones a reviewer misses by eye: a secret reaching a log, a
+# path built from user input, an injection through a spawned command. CodeQL is free for public
+# repositories, and its findings land in the Security tab rather than in a PR comment nobody
+# reads twice.
+#
+# Generated code is excluded — it is asserted by the parity test and regenerated from the spec,
+# so a finding there would be reported against a file no human edits.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so a newly published query still finds old code.
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze javascript-typescript
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # the whole point: writing findings to the Security tab
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          config-file: ./.github/codeql/config.yml
+          # `security-and-quality` adds maintainability rules that would drown the security
+          # signal; this repository already has Biome and a type checker for that.
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:javascript-typescript'

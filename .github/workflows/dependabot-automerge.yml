@@ -1,0 +1,52 @@
+# Lets routine dependency bumps merge themselves once CI has agreed.
+#
+# The toil this removes is real — every bump so far has needed a human to open it, wait, and
+# click — but the risk it takes on is also real, so the scope is deliberately narrow: only
+# Dependabot's own pull requests, only patch and minor updates, and only through auto-merge,
+# which GitHub holds until every required check passes. A major bump still gets a person.
+#
+# `pull_request_target` is not used, and no code from the branch is checked out or executed
+# here: this job reads metadata and asks GitHub to queue the merge. That is what keeps a
+# malicious dependency from turning "merge when green" into "run my code with a write token".
+
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # queue the merge
+      pull-requests: write # approve it
+
+    steps:
+      - name: read the bump metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: approve and queue
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Never interpolated into the shell: a PR URL is attacker-influenced input in the
+          # general case, and env is the only form that cannot become a command.
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+
+      - name: say why a major bump was left alone
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr comment "$PR_URL" --body \
+            'Major version bump — not auto-merged. Read the changelog, then merge by hand.'

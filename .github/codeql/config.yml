@@ -1,0 +1,12 @@
+# Scope for the CodeQL run. Kept beside the workflow rather than inline so the exclusions are
+# reviewable on their own.
+name: weeek-cli
+
+paths-ignore:
+  # Emitted by scripts/gen.ts from the vendored OpenAPI document and asserted by
+  # tests/parity.test.ts. A finding here would be filed against a file nobody edits by hand;
+  # the fix would belong in the generator, which is analysed.
+  - src/core/api/generated
+  # Test fixtures deliberately contain implausible tokens and malformed input.
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
