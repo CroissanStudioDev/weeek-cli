@@ -102,7 +102,11 @@ export function buildPath(
   operation: OperationMeta,
   values: Record<string, string | number>,
 ): string {
-  return operation.path.replace(/\{([^}]+)\}/g, (_, name: string) => {
+  // `[^{}]` rather than `[^}]`: with only `}` excluded the class can also match `{`, which
+  // lets the engine backtrack quadratically over a long run of braces. The paths this sees are
+  // short and come from the registry, except under `weeek api`, where they come from argv —
+  // still not an attacker, but a regex that cannot backtrack costs one character.
+  return operation.path.replace(/\{([^{}]+)\}/g, (_, name: string) => {
     const value = values[name]
     if (value === undefined || value === '') {
       throw new WeeekError({

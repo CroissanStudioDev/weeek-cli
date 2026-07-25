@@ -33,7 +33,9 @@ function usage(operationIndex: number): string {
 }
 
 function escapePipes(text: string): string {
-  return text.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim()
+  // Backslashes first: escaping `|` without escaping the escape character turns a description
+  // containing `\` into markdown that means something else than it says.
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim()
 }
 
 function commandTable(): string {
