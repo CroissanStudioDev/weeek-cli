@@ -30,7 +30,7 @@ jobs:
 
       # npm ≥ 11.5.1 is what performs the OIDC exchange; the Node here is only the publish
       # vehicle, the package itself is built by Bun.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
