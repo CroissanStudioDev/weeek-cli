@@ -24,6 +24,7 @@ import {
   REQUIRED_QUERY_OVERRIDES,
   RESPONSE_SCHEMAS,
 } from '../spec/overrides.ts'
+import { flagName } from '../src/cli/global-flags.ts'
 import { argName, commandFor, type HttpMethod } from '../src/cli/naming.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -75,6 +76,14 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
 // Pass 2: build the registry.
 // ---------------------------------------------------------------------------------------------
 
+export interface BodyFieldMeta {
+  name: string
+  type: string
+  required: boolean
+  cli: string
+  enum?: (string | number)[]
+}
+
 export interface ParamMeta {
   name: string
   in: 'path' | 'query'
@@ -99,7 +108,7 @@ interface OperationMeta {
   body: {
     contentType: 'json' | 'multipart'
     required: boolean
-    fields: { name: string; type: string; required: boolean; cli: string }[]
+    fields: BodyFieldMeta[]
   } | null
   envelopeKey: string | null
   hasMoreKey: string | null
@@ -166,6 +175,23 @@ function envelopeOf(op: Json): {
   return { key: payloadKey, hasMore, isArray, status }
 }
 
+/**
+ * Sort parameters document descending order as a `-` prefix ("prepend a minus sign to the
+ * parameter, for example `-name`") while their enum lists only the ascending forms. Commander
+ * validates against that enum, so `--sort-by -created` — the documented way to sort newest
+ * first — was rejected outright, and descending sort was reachable only through `weeek api`.
+ *
+ * The prefixed forms are added to the enum itself rather than special-cased in the CLI, so
+ * `--help`, shell completion and `weeek schema --json` all agree on what is accepted.
+ */
+function withDescendingVariants(
+  values: (string | number)[],
+  description: string | undefined,
+): (string | number)[] {
+  if (!/minus sign/i.test(description ?? '')) return values
+  return [...values, ...values.map((value) => `-${value}`)]
+}
+
 const operations: OperationMeta[] = []
 
 for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
@@ -192,11 +218,11 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
           p.required === true ||
           where === 'path' ||
           (REQUIRED_QUERY_OVERRIDES[key]?.params.includes(p.name) ?? false),
-        cli: where === 'path' ? argName(p.name) : toKebab(p.name),
+        cli: where === 'path' ? argName(p.name) : flagName(toKebab(p.name), 'query'),
       }
       if (schema?.items?.type) meta.itemType = schema.items.type
       if (p.description) meta.description = p.description
-      if (schema?.enum) meta.enum = schema.enum
+      if (schema?.enum) meta.enum = withDescendingVariants(schema.enum, p.description)
       // The API takes 0/1 rather than true/false — see overrides: BOOLEAN_WIRE_FORMAT.
       if (meta.type === 'boolean' && BOOLEAN_WIRE_FORMAT.style === 'numeric') {
         meta.wire = 'numeric-bool'
@@ -224,12 +250,24 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
         required: op.requestBody.required === true,
         // Types travel with each field so the CLI knows which flags must be parsed as JSON:
         // an array field handed a bare string is rejected by zod before it ever ships.
-        fields: Object.entries((schema?.properties ?? {}) as Json).map(([name, sub]) => ({
-          name,
-          type: schemaType(sub as Json),
-          required: requiredFields.includes(name),
-          cli: toKebab(name),
-        })),
+        fields: Object.entries((schema?.properties ?? {}) as Json).map(([name, sub]) => {
+          const property = (resolveRef(sub as Json) ?? sub) as Json
+          const field: BodyFieldMeta = {
+            name,
+            type: schemaType(property),
+            required: requiredFields.includes(name),
+            // Renamed when the API's own name is a CLI flag — see global-flags.ts. Renaming
+            // here rather than in the command builder keeps `weeek schema --json`, shell
+            // completion and `--help` naming the same flag.
+            cli: flagName(toKebab(name), 'body'),
+          }
+          // Without this the only hint that `--win-status` takes won|lost|archived was the
+          // rejection message from zod, and only after a wrong guess.
+          if (Array.isArray(property.enum) && property.enum.length > 0) {
+            field.enum = property.enum as (string | number)[]
+          }
+          return field
+        }),
       }
     }
 
@@ -332,7 +370,10 @@ export interface OperationMeta {
       /** JSON Schema type: array/object fields arrive as JSON on the command line */
       readonly type: string
       readonly required: boolean
+      /** kebab-case flag, prefixed with "body-" when the API's own name is a CLI flag */
       readonly cli: string
+      /** Values the spec allows, surfaced in --help so they are discoverable */
+      readonly enum?: readonly (string | number)[]
     }[]
   } | null
   /**
@@ -372,13 +413,22 @@ function zodFor(schema: Json | undefined, depth = 0): string {
   const s = resolveRef(schema)
   if (!s || depth > 6) return 'z.unknown()'
 
-  if (Array.isArray(s.enum) && s.enum.length > 0) {
-    return `z.enum(${JSON.stringify(s.enum.map(String))})`
-  }
-
   // `type: ["string", "null"]` is used throughout this spec; without unwrapping it, every
   // nullable field would silently degrade to z.unknown() and validate nothing.
   const nullable = Array.isArray(s.type) && s.type.includes('null')
+
+  if (Array.isArray(s.enum) && s.enum.length > 0) {
+    // Numeric enums must stay numeric. Stringifying them (`priority: enum [0,1,2,3]` becoming
+    // z.enum(["0",…])) contradicted the field's declared `integer` type, which is what the CLI
+    // coerces the flag to — so `--priority 2` failed validation and the field was reachable
+    // only through `--body`.
+    const numeric = s.enum.every((member) => typeof member === 'number')
+    const inner = numeric
+      ? `z.union([${s.enum.map((member) => `z.literal(${member})`).join(', ')}])`
+      : `z.enum(${JSON.stringify(s.enum.map(String))})`
+    return nullable ? `${inner}.nullable()` : inner
+  }
+
   const inner = zodForType(schemaType(s), s, depth)
   return nullable ? `${inner}.nullable()` : inner
 }
