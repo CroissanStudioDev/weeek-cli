@@ -320,10 +320,15 @@ describe.skipIf(!built)('pagination', () => {
     expect(code, stderr).toBe(0)
     expect(JSON.parse(stdout.toString('utf8'))).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
     expect(stub.seen).toHaveLength(2)
-    // The second request must move the window, or "follow every page" is an infinite loop.
-    expect(new URLSearchParams(stub.seen[1]?.search ?? '').get('offset')).not.toBe(
-      new URLSearchParams(stub.seen[0]?.search ?? '').get('offset'),
-    )
+
+    // The window must advance by exactly what the first page returned. Asserting only that it
+    // changed would pass on an offset that jumped, skipping records, or on one that came back
+    // as undefined — and "follow every page" is an infinite loop if it does not move at all.
+    const first = new URLSearchParams(stub.seen[0]?.search ?? '')
+    const second = new URLSearchParams(stub.seen[1]?.search ?? '')
+    expect(first.get('offset')).toBe('0')
+    expect(second.get('offset')).toBe('2')
+    expect(second.get('perPage')).toBe(first.get('perPage'))
   })
 
   it('without --all-pages it asks once', async () => {
