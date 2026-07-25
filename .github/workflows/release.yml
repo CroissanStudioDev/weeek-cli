@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: version PR or publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the version PR and the GitHub release
+      pull-requests: write
+      id-token: write # npm Trusted Publishing + Sigstore provenance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # npm ≥ 11.5.1 is what performs the OIDC exchange; the Node here is only the publish
+      # vehicle, the package itself is built by Bun.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm install -g npm@latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: verify before publishing
+        run: |
+          bun run lint
+          bun run typecheck
+          bun run test
+          bun run gen
+          git diff --exit-code -- src/core/api/generated
+
+      # The published bundle is NOT built here: `changeset version` bumps package.json after
+      # this point, and a bundle built now would bake the old version into `weeek --version`.
+      # `prepublishOnly` rebuilds during `changeset publish`, after the bump.
+
+      # Either opens/updates the "Version Packages" PR, or — when that PR has been merged and
+      # changesets remain consumed — publishes. `publish` uses npm underneath, so the OIDC
+      # credential minted by id-token is what authenticates. No NPM_TOKEN exists in this repo:
+      # Trusted Publishing is configured on the npm package with this repository and workflow
+      # filename, and requires a GitHub-hosted runner.
+      - name: changesets
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: bunx changeset version
+          publish: bunx changeset publish
+          commit: 'chore: version packages'
+          title: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
+
+      - name: build standalone binaries
+        if: steps.changesets.outputs.published == 'true'
+        run: bun run build:binaries
+
+      - name: attach binaries to the GitHub release
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Written by changesets/action as a JSON array; read as data, never interpolated
+          # into a shell command.
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+        run: |
+          tag="v$(printf '%s' "$PUBLISHED" | jq -r '.[0].version')"
+          # Executables only — anything else in dist/bin is a build by-product, not an asset.
+          (cd dist/bin && sha256sum weeek-* > SHA256SUMS)
+          assets=(dist/bin/weeek-* dist/bin/SHA256SUMS)
+          gh release create "$tag" --title "$tag" --generate-notes "${assets[@]}" \
+            || gh release upload "$tag" "${assets[@]}" --clobber

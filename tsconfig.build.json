@@ -1,0 +1,16 @@
+{
+  // Declarations for the published SDK only. The root tsconfig also covers tests, scripts and
+  // the spec helpers, and emitting those would ship `dist/types/tests/**` to npm.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist/types",
+    // Declaration emit cannot resolve `./foo.ts` specifiers; rewrite them on the way out.
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src/core", "spec/overrides.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+}

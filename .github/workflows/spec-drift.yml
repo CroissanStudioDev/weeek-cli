@@ -1,0 +1,52 @@
+name: Spec drift
+
+# WEEEK publishes no OpenAPI document; ours is extracted from their docs bundle. When they ship
+# changes, this notices. Deliberately NOT part of PR CI: an upstream edit is not a reason to
+# block someone else's pull request, and the extraction depends on a third-party site being up.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays, early
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+
+      - name: re-extract the spec and compare
+        id: diff
+        run: |
+          cp spec/weeek-openapi.json /tmp/current.json
+          bun run spec:refresh
+          if git diff --quiet -- spec/weeek-openapi.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo 'summary<<EOF'
+              bun run gen > /dev/null 2>&1 || true
+              git diff --stat -- spec/weeek-openapi.json src/core/api/generated
+              echo EOF
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: open an issue
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUMMARY: ${{ steps.diff.outputs.summary }}
+        run: |
+          gh issue create \
+            --title "Upstream API description changed" \
+            --label spec-drift \
+            --body "$(printf 'The docs bundle no longer matches `spec/weeek-openapi.json`.\n\n```\n%s\n```\n\nRun `bun run spec:refresh && bun run gen` locally; the parity test will name any added or removed operations.' "$SUMMARY")"

@@ -1,0 +1,44 @@
+name: API mismatch
+description: The CLI sends or expects something the real WEEEK API does not
+labels: [api-mismatch]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are the most useful reports for this project: the OpenAPI document it is built
+        from was reconstructed from WEEEK's docs bundle, so some of it is inference.
+
+        **Please redact your token** from anything you paste. `--verbose` masks it, but check.
+
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      placeholder: weeek task list --project-id 4 --tag-ids 1 --tag-ids 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: sent
+    attributes:
+      label: What was sent
+      description: Output of the command with `--dry-run`, or the `--verbose` trace.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What the API actually wanted
+      description: The request that works — from the docs, another client, or trial and error.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: weeek --version
+    validations:
+      required: true

@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in the CLI or TUI misbehaves
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: '**Do not paste your API token.** Redact it from any output you attach.'
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the command, what you expected, and what you got.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Output of `weeek doctor --json` (it contains no secrets), plus OS and install method.
+      render: json
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: weeek --version
+    validations:
+      required: true

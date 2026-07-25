@@ -1,0 +1,51 @@
+name: Live smoke
+
+# Read-only calls against the real API, to catch the places where the reconstructed spec and
+# reality disagree. Never runs on pull requests: it needs a workspace token, and a fork PR must
+# never be able to reach it.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: live-api # gate the secret behind an environment with required reviewers
+    if: github.repository_owner != '' && github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
+      - name: read-only calls
+        env:
+          WEEEK_TOKEN: ${{ secrets.WEEEK_TOKEN }}
+        run: |
+          set -euo pipefail
+          node dist/weeek.js me --json | jq -e '.id'
+          node dist/weeek.js workspace info --json | jq -e '.'
+          node dist/weeek.js project list --json | jq -e 'type == "array"'
+          node dist/weeek.js task list --json | jq -e 'type == "array"'
+          node dist/weeek.js member list --json | jq -e 'type == "array"'
+          node dist/weeek.js doctor --json | jq -e '.ok == true'
+
+      - name: the token never appears in output
+        env:
+          WEEEK_TOKEN: ${{ secrets.WEEEK_TOKEN }}
+        run: |
+          node dist/weeek.js --verbose me > /tmp/out 2> /tmp/err || true
+          if grep -qF "$WEEEK_TOKEN" /tmp/out /tmp/err; then
+            echo '::error::the token leaked into command output'
+            exit 1
+          fi

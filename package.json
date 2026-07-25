@@ -1,0 +1,97 @@
+{
+  "name": "weeek-cli",
+  "version": "0.0.0",
+  "description": "Unofficial CLI and terminal UI for the WEEEK task tracker — full coverage of the public API",
+  "keywords": [
+    "weeek",
+    "cli",
+    "task-tracker",
+    "kanban",
+    "crm",
+    "tui",
+    "openapi"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CroissanStudioDev/weeek-cli.git"
+  },
+  "bugs": "https://github.com/CroissanStudioDev/weeek-cli/issues",
+  "homepage": "https://github.com/CroissanStudioDev/weeek-cli#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "weeek": "./dist/weeek.js"
+  },
+  "main": "./dist/core/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./api": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "spec/weeek-openapi.json",
+    "spec/SPEC_PROVENANCE.md",
+    "docs/COMMANDS.md",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "scripts": {
+    "gen": "bun run scripts/gen.ts",
+    "gen:check": "bun run gen && git diff --exit-code -- src/core/api/generated",
+    "spec:refresh": "bun run scripts/refresh-spec.ts",
+    "spec:probe": "bun run scripts/probe-live.ts",
+    "docs:commands": "bun run scripts/gen-docs.ts",
+    "docs:check": "bun run scripts/gen-docs.ts --check",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "build": "bun run scripts/build.ts",
+    "prepublishOnly": "bun run build",
+    "build:binaries": "bun run scripts/build.ts --binaries",
+    "release": "changeset publish"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "commander": "^15.0.0",
+    "ink": "^7.1.1",
+    "react": "^19.2.8",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "^1.2.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.5",
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.1",
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "ink-testing-library": "^4.0.0",
+    "msw": "^2.15.0",
+    "openapi-msw": "^2.0.0",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
