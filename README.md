@@ -149,6 +149,7 @@ bun install
 bun run gen          # spec + overrides → generated registry, zod schemas, types
 bun run typecheck && bun run lint && bun run test
 bun run build        # dist/weeek.js + dist/core (SDK)
+bun run build && bun run test   # tests/e2e run the built binary; they skip themselves without dist/
 bun run build:binaries
 bun run docs:commands                        # regenerate docs/COMMANDS.md
 WEEEK_TOKEN=… bun run spec:probe             # re-check the encoding questions, read-only
