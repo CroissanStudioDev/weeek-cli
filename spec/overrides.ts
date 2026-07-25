@@ -269,3 +269,37 @@ export const SILENTLY_IGNORED_BODY_FIELDS: Record<
     confidence: 'verified',
   },
 }
+
+/**
+ * Deletions that are not deletions.
+ *
+ * WEEEK moves the record to a trash can and flags it `isDeleted: true`. The API answers success,
+ * `GET` on the id keeps answering **200** with the record, and `GET /tm/tasks?all=1` keeps
+ * listing it. Nothing in the delete response says any of that, so the obvious way to check —
+ * fetch the id again — reports the object as alive and sends people looking for a bug in the
+ * CLI. The way that works is the plain listing, which excludes deleted records.
+ *
+ * VERIFIED on two resources, each on an object created or identified for the purpose:
+ *   tasks  — a deleted task is absent from `task list` (134 records) and present in
+ *            `task list --all` (169, of which 35 carry `isDeleted: true`), and `task get`
+ *            on it exits 0.
+ *   tags   — a deleted tag leaves `tag list` while `tag get <id>` still answers 200.
+ *
+ * Only those two are listed because only those two were checked. The behaviour looks
+ * platform-wide, but a note that claims more than was observed is how documentation starts
+ * lying.
+ */
+export const SOFT_DELETE_OPERATIONS: Record<string, { note: string }> = {
+  'task.delete': {
+    note:
+      'WEEEK moved it to the trash rather than erasing it: `task get` still answers 200, and ' +
+      '`task list --all` still lists it with isDeleted: true. Confirm with a plain ' +
+      '`weeek task list --project-id <id>`, which excludes deleted tasks.',
+  },
+  'tag.delete': {
+    // `tag list` has no `--all`, so the confirmation is simply the listing.
+    note:
+      'WEEEK moved it to the trash rather than erasing it: `tag get <id>` still answers 200. ' +
+      'Confirm with `weeek tag list`, which no longer includes it.',
+  },
+}

@@ -151,7 +151,7 @@ Verified against the live API:
 | Booleans | `0`/`1`. `completed=true` is rejected with 422 — it does not silently skip the filter. |
 | `/crm/statuses{id}` | Really is a typo: `/crm/statuses/1` answers "Record not found", the unslashed form answers "route could not be found". |
 | "Not found" | Two shapes: **HTTP 400** with `{"code":1000001,"message":"Model not found"}` for tasks/projects/deals, and a plain **404** for `/ws/tags/{id}`. The CLI exits 4 for both. |
-| Deletion | Soft, at least for tags: after `tag delete` the tag is gone from `tag list` but `tag get <id>` still answers 200. |
+| Deletion | Soft. `task delete` and `tag delete` flag the record and move it to the trash: `… get <id>` keeps answering 200, and `task list --all` keeps listing it with `isDeleted: true` (measured: 134 tasks plain, 169 with `--all`, 35 of them deleted). Verify a delete with the plain listing, never with `get`. The CLI says this on stderr after those two commands. |
 | Validation errors | `{"success":false,"errors":{"field":["…"]}}`; the generic `message` alongside it does not name the field, so the field map wins. |
 | Required filters | `GET /tm/board-columns` needs `boardId` even though the spec calls it optional. Checked locally, before the request. |
 | Task descriptions | `PUT /tm/tasks/{id}` answers 200 and ignores `description`, in every shape tried; `title` on the same call updates fine. Set it with `task create`, or edit it in the web UI. The CLI warns when a request carries the field. |

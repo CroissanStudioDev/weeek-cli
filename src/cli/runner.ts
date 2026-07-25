@@ -5,7 +5,11 @@
  * `weeek --help` does not pay for them.
  */
 
-import { PAGINATOR_FLAG, SILENTLY_IGNORED_BODY_FIELDS } from '../../spec/overrides.ts'
+import {
+  PAGINATOR_FLAG,
+  SILENTLY_IGNORED_BODY_FIELDS,
+  SOFT_DELETE_OPERATIONS,
+} from '../../spec/overrides.ts'
 import { WeeekError } from '../core/api/errors.ts'
 import type { OperationMeta } from '../core/api/generated/operations.ts'
 import type { Output } from './output.ts'
@@ -227,6 +231,21 @@ function warnAboutIgnoredFields(operation: OperationMeta, body: unknown, output:
   )
 }
 
+/**
+ * Says out loud that a delete was a move to the trash.
+ *
+ * Without this the natural check — fetch the id again — answers 200 with the record, and the
+ * reasonable conclusion is that the delete failed. It did not; the record is flagged and
+ * hidden from the plain listing. Pointing at the check that actually works costs one line on
+ * stderr and saves the same confusion every time.
+ */
+function noteSoftDelete(operation: OperationMeta, output: Output): void {
+  const known = SOFT_DELETE_OPERATIONS[operation.id]
+  if (!known) return
+
+  output.note(known.note)
+}
+
 export async function runOperation(context: CommandContext, deps: RunDeps): Promise<void> {
   const { operation, args, options } = context
   const { output, global } = deps
@@ -308,6 +327,7 @@ export async function runOperation(context: CommandContext, deps: RunDeps): Prom
 
   const result = await client.call(operation, request)
   output.data(result)
+  noteSoftDelete(operation, output)
 }
 
 async function collectFiles(

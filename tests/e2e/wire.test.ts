@@ -823,3 +823,42 @@ describe.skipIf(!built)('fields the API accepts and discards', () => {
     expect(create?.body?.fields.map((field) => field.name)).toContain('description')
   })
 })
+
+describe.skipIf(!built)('deletes that are moves to the trash', () => {
+  // WEEEK flags the record `isDeleted` and hides it from the plain listing. The obvious check —
+  // fetch the id again — answers 200, which reads as "the delete failed" and sends people
+  // looking for a bug in the CLI. The note points at the check that works.
+  it('says so, on stderr, after a task delete', async () => {
+    stub.answers(envelope(null, false))
+
+    const { code, stdout, stderr } = await run(['task', 'delete', '175', '--yes', '--json'])
+
+    expect(code).toBe(0)
+    expect(stderr).toContain('trash')
+    expect(stderr).toContain('isDeleted')
+    expect(stderr).toContain('task list')
+    // Still just data on stdout: the note must not break `| jq`.
+    expect(() => JSON.parse(stdout.toString('utf8'))).not.toThrow()
+  })
+
+  it('tailors the note to what the resource actually supports', async () => {
+    // `tag list` has no `--all`, so promising one there would be advice that cannot be followed.
+    stub.answers(envelope(null, false))
+
+    const { stderr } = await run(['tag', 'delete', '5', '--yes', '--json'])
+
+    expect(stderr).toContain('tag list')
+    expect(stderr).not.toContain('--all')
+  })
+
+  it('stays silent for deletes whose behaviour was never checked', async () => {
+    // The table lists two resources because two were verified. Claiming the rest behave the
+    // same is how documentation starts lying.
+    stub.answers(envelope(null, false))
+
+    const { code, stderr } = await run(['board', 'delete', '3', '--yes', '--json'])
+
+    expect(code).toBe(0)
+    expect(stderr).toBe('')
+  })
+})
