@@ -237,3 +237,35 @@ export const ERROR_ENVELOPE_HINT = {
   /** Present on at least 401; carried into WeeekError for support conversations. */
   codeKey: 'code',
 }
+
+/**
+ * Fields the API accepts and then ignores.
+ *
+ * `PUT /tm/tasks/{id}` answers 200 for a body containing `description` and leaves the text
+ * unchanged. The reconstructed spec agrees — its PUT body has no `description` — so this is not
+ * a spec defect to correct; it is a real limit of the API that costs a debugging session to
+ * discover, because nothing in the response says the field went nowhere.
+ *
+ * VERIFIED against the live API on a task created for the purpose, with a control: the same
+ * request shape updates `title` on the same endpoint in the same call, so the request itself is
+ * fine. Rejected shapes, all 200 and all without effect: `description` as plain text, the same
+ * wrapped in `<p>…</p>` (which is how the API stores what `POST /tm/tasks` is given),
+ * `descriptionHtml`, `text`, and `description` sent alongside `title`. `PATCH /tm/tasks/{id}`
+ * is not a route at all — the API answers with the supported methods, GET/HEAD/PUT/DELETE.
+ *
+ * So a description can be set at creation and changed only in the web UI. The CLI cannot make
+ * the API do it, but it can refuse to be silent about it: `runner.ts` warns on stderr when a
+ * request carries one of these fields, and still sends it, in case the API ever starts caring.
+ */
+export const SILENTLY_IGNORED_BODY_FIELDS: Record<
+  string,
+  { fields: readonly string[]; note: string; confidence: Confidence }
+> = {
+  'task.update': {
+    fields: ['description'],
+    note:
+      'the API answers 200 and leaves the description unchanged — it can only be set when the ' +
+      'task is created, or edited in the web UI',
+    confidence: 'verified',
+  },
+}

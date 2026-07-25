@@ -5,7 +5,7 @@
  * `weeek --help` does not pay for them.
  */
 
-import { PAGINATOR_FLAG } from '../../spec/overrides.ts'
+import { PAGINATOR_FLAG, SILENTLY_IGNORED_BODY_FIELDS } from '../../spec/overrides.ts'
 import { WeeekError } from '../core/api/errors.ts'
 import type { OperationMeta } from '../core/api/generated/operations.ts'
 import type { Output } from './output.ts'
@@ -205,6 +205,28 @@ export interface RunDeps {
   confirm: (question: string) => Promise<boolean>
 }
 
+/**
+ * Warns when a request carries a field the API is known to accept and discard.
+ *
+ * A 200 with no effect is the worst kind of failure: nothing to read, nothing to search for.
+ * The field is still sent — the table records what the API does today, not a rule the CLI
+ * wants to enforce — and the warning goes to stderr, so piped output is unaffected.
+ */
+function warnAboutIgnoredFields(operation: OperationMeta, body: unknown, output: Output): void {
+  if (!body || typeof body !== 'object') return
+  const fields = body as Record<string, unknown>
+
+  const known = SILENTLY_IGNORED_BODY_FIELDS[operation.id]
+  if (!known) return
+
+  const present = known.fields.filter((field) => field in fields)
+  if (present.length === 0) return
+
+  output.warn(
+    `${operation.command.join(' ')}: ${present.map((f) => `\`${f}\``).join(', ')} — ${known.note}.`,
+  )
+}
+
 export async function runOperation(context: CommandContext, deps: RunDeps): Promise<void> {
   const { operation, args, options } = context
   const { output, global } = deps
@@ -228,6 +250,7 @@ export async function runOperation(context: CommandContext, deps: RunDeps): Prom
   }
 
   const body = await validateBody(operation, collectBody(operation, options), global.noValidate)
+  warnAboutIgnoredFields(operation, body, output)
 
   if (global.dryRun) {
     const { buildPath, buildQuery } = await import('../core/api/client.ts')

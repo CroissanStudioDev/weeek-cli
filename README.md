@@ -154,6 +154,7 @@ Verified against the live API:
 | Deletion | Soft, at least for tags: after `tag delete` the tag is gone from `tag list` but `tag get <id>` still answers 200. |
 | Validation errors | `{"success":false,"errors":{"field":["…"]}}`; the generic `message` alongside it does not name the field, so the field map wins. |
 | Required filters | `GET /tm/board-columns` needs `boardId` even though the spec calls it optional. Checked locally, before the request. |
+| Task descriptions | `PUT /tm/tasks/{id}` answers 200 and ignores `description`, in every shape tried; `title` on the same call updates fine. Set it with `task create`, or edit it in the web UI. The CLI warns when a request carries the field. |
 
 Still unverified: the 429 body and its `Retry-After` header (the client honours the header and
 retries with backoff, but nobody has provoked one).

@@ -777,3 +777,49 @@ describe.skipIf(!built)('weeek.env', () => {
     )
   })
 })
+
+describe.skipIf(!built)('fields the API accepts and discards', () => {
+  // `PUT /tm/tasks/{id}` answers 200 for a body carrying `description` and changes nothing.
+  // A silent success is the hardest failure to diagnose, so the CLI says something — while
+  // still sending the field, because the table records today's API, not a rule of its own.
+  it('warns on stderr but sends the field anyway', async () => {
+    stub.answers(envelope('task', false))
+
+    const { code, stdout, stderr } = await run([
+      'task',
+      'update',
+      '8123',
+      '--title',
+      'Renamed',
+      '--body',
+      '{"description":"new text"}',
+      '--json',
+    ])
+
+    expect(code, stderr).toBe(0)
+    expect(stderr).toContain('description')
+    expect(stderr).toContain('web UI')
+
+    const body = JSON.parse(stub.seen[0]?.body.toString('utf8') ?? '{}')
+    expect(body).toEqual({ title: 'Renamed', description: 'new text' })
+    // The warning is commentary; a pipeline reading stdout must not see it.
+    expect(() => JSON.parse(stdout.toString('utf8'))).not.toThrow()
+  })
+
+  it('stays quiet when the field is not there', async () => {
+    stub.answers(envelope('task', false))
+
+    const { stderr } = await run(['task', 'update', '8123', '--title', 'Renamed', '--json'])
+    expect(stderr).toBe('')
+  })
+
+  it('has no --description flag to warn about in the first place', () => {
+    // The spec's PUT body genuinely lacks the field, so the generated command lacks the flag.
+    // The trap is only reachable through --body or `weeek api`, which is where the warning is.
+    const update = OPERATIONS.find((operation) => operation.id === 'task.update')
+    const create = OPERATIONS.find((operation) => operation.id === 'task.create')
+
+    expect(update?.body?.fields.map((field) => field.name)).not.toContain('description')
+    expect(create?.body?.fields.map((field) => field.name)).toContain('description')
+  })
+})
