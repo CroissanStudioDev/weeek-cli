@@ -7,6 +7,8 @@
  * registered.
  */
 
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Command } from 'commander'
 import { EXIT, EXIT_CODE_HELP, exitCodeFor } from './cli/exit-codes.ts'
 import {
@@ -230,10 +232,38 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
 }
 
-// Only self-execute as a binary, never when imported by tests.
+/**
+ * True when this module was started as the program, rather than imported by a test.
+ *
+ * The obvious spelling — comparing `import.meta.url` with `file://` + `process.argv[1]` — is a
+ * POSIX-only accident. On Windows argv[1] is `C:\dir\weeek.js` while the URL is
+ * `file:///C:/dir/weeek.js`, so the two never match, `main()` never runs, and the CLI exits 0
+ * having printed nothing: `npm i -g weeek-cli` produced a command that silently did nothing.
+ * Nothing caught it until the end-to-end suite began running on the Windows runner.
+ *
+ * So: compare real paths. The URL form is kept as a fallback because in a `bun build --compile`
+ * binary both sides are virtual `$bunfs` paths that resolve to nothing on disk.
+ *
+ * There is no unit test for this, on purpose. Node resolves `argv[1]` to an absolute path
+ * before the program sees it, so no spelling of the path reproduces the fault on POSIX — a
+ * test written here would pass against the broken version too. What guards it is the
+ * end-to-end suite running on the Windows runner, which is where it surfaced.
+ */
+function startedAsProgram(): boolean {
+  const entry = process.argv[1]
+  if (!entry) return false
+  if (import.meta.url === `file://${entry}`) return true
+
+  try {
+    return resolve(entry) === resolve(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
 // Deliberately not top-level `await`: `bun build --compile --bytecode` compiles to CommonJS,
 // which has no top-level await, and the entry point would fail to build for the binaries.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (startedAsProgram()) {
   void main().then((code) => {
     process.exitCode = code
   })
