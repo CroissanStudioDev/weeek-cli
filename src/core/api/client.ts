@@ -263,7 +263,8 @@ export class WeeekClient {
 
   private async send(operation: OperationMeta, options: RequestOptions): Promise<Response> {
     const path = buildPath(operation, options.path)
-    const url = `${this.baseUrl}${path}${buildQuery(operation, options.query)}`
+    const query = buildQuery(operation, options.query)
+    const url = `${this.baseUrl}${path}${query}`
     const requestInfo = { method: operation.method, path }
 
     const headers: Record<string, string> = {
@@ -319,7 +320,7 @@ export class WeeekClient {
         throw lastError
       }
 
-      this.trace(operation, path, response.status, Date.now() - started, attempt)
+      this.trace(operation, `${path}${query}`, response.status, Date.now() - started, attempt)
 
       if (response.ok) return response
 
@@ -362,15 +363,20 @@ export class WeeekClient {
     return exponential + Math.random() * RETRY_BASE_MS
   }
 
+  /**
+   * The traced target includes the query string on purpose: how a filter was encoded — `tags[]`
+   * versus `tags`, `1` versus `true` — is the question `--verbose` exists to answer, and a trace
+   * that stopped at the path could not answer it. `redact` still runs over the whole line.
+   */
   private trace(
     operation: OperationMeta,
-    path: string,
+    target: string,
     status: number,
     ms: number,
     attempt: number,
   ): void {
     if (!this.onTrace) return
     const retry = attempt > 1 ? ` (attempt ${attempt})` : ''
-    this.onTrace(redact(`${operation.method} ${path} → ${status} ${ms}ms${retry}`))
+    this.onTrace(redact(`${operation.method} ${target} → ${status} ${ms}ms${retry}`))
   }
 }

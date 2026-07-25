@@ -62,6 +62,10 @@ export function doctorCommand(deps: () => CommandDeps): Command {
       const { tokenHint } = await import('../core/auth/redact.ts')
       const resolveOptions: Parameters<typeof resolveToken>[0] = {}
       if (global.profile !== undefined) resolveOptions.profile = global.profile
+      // `--token-file` has to be forwarded like every other command forwards it. Without it
+      // `doctor` reported "no API token" to a user who had just passed one, and skipped the
+      // API check on top — the one command whose whole job is to describe the real state.
+      if (global.tokenFile !== undefined) resolveOptions.tokenFile = global.tokenFile
 
       let token: string | undefined
       try {

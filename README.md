@@ -87,7 +87,8 @@ Ten things worth knowing:
    field whose API name is already a CLI flag is offered prefixed — `--body-color`, not
    `--color` — rather than being dropped.
 7. `delete` commands confirm on a TTY and require `--yes` when not interactive.
-8. `--verbose` traces requests to stderr with the token masked.
+8. `--verbose` traces requests to stderr — method, path, **query string**, status, timing —
+   with the token masked. The query string is there so you can see how a filter was encoded.
 9. `weeek api GET /tm/tasks --query projectId=4` is the escape hatch for anything unmapped.
 10. `weeek completion zsh > ~/.zsh/completions/_weeek` — completions come from the same registry.
 

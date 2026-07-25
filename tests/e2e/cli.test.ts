@@ -11,7 +11,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -141,5 +141,36 @@ describe.skipIf(!built)('the built CLI', () => {
 describe.skipIf(built)('e2e suite', () => {
   it('is skipped until `bun run build` has produced dist/weeek.js', () => {
     expect(built).toBe(false)
+  })
+})
+
+describe.skipIf(!built)('--token-file reaches every command that resolves a token', () => {
+  // `doctor` built its own resolve options and forgot to forward `--token-file`, so it told a
+  // user who had just passed a token that there was none, and skipped the API check on top.
+  // Five other call sites forwarded it correctly; nothing failed because nothing checked.
+  // The token here is a syntactically valid string that is never sent: `--dry-run` and
+  // `doctor`'s credentials check both stop before the network.
+  const tokenFile = built ? join(mkdtempSync(join(tmpdir(), 'weeek-tok-')), 'token') : ''
+  if (built) writeFileSync(tokenFile, 'token_from_a_file_123', { mode: 0o600 })
+
+  it('doctor reports the token instead of claiming there is none', () => {
+    const { stdout, code } = run(['--token-file', tokenFile, 'doctor', '--json'])
+    expect(code).toBe(0)
+
+    const checks = JSON.parse(stdout).checks as { name: string; ok: boolean; detail: string }[]
+    const credentials = checks.find((check) => check.name === 'credentials')
+    expect(credentials?.ok, credentials?.detail).toBe(true)
+    expect(credentials?.detail).toContain('token-file')
+  })
+
+  it('auth status agrees about where the token came from', () => {
+    const { stdout, code } = run(['--token-file', tokenFile, 'auth', 'status', '--json'])
+    expect(code).toBe(0)
+    expect(JSON.parse(stdout).source).toBe('token-file')
+  })
+
+  it('a generated command accepts it too', () => {
+    const { code } = run(['--token-file', tokenFile, 'task', 'get', '1', '--dry-run', '--json'])
+    expect(code).toBe(0)
   })
 })
