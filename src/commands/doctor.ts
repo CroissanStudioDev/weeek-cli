@@ -60,22 +60,29 @@ export function doctorCommand(deps: () => CommandDeps): Command {
       // Auth is reported, never required.
       const { resolveToken } = await import('../core/auth/resolve.ts')
       const { tokenHint } = await import('../core/auth/redact.ts')
-      const resolveOptions: Parameters<typeof resolveToken>[0] = {}
-      if (global.profile !== undefined) resolveOptions.profile = global.profile
-      // `--token-file` has to be forwarded like every other command forwards it. Without it
-      // `doctor` reported "no API token" to a user who had just passed one, and skipped the
-      // API check on top — the one command whose whole job is to describe the real state.
-      if (global.tokenFile !== undefined) resolveOptions.tokenFile = global.tokenFile
+      const { resolveOptionsFrom } = await import('../cli/runner.ts')
+      // Built by the shared helper rather than by hand: this command once forgot to forward
+      // `--token-file` and reported "no API token" to someone who had just passed one.
+      const resolveOptions = resolveOptionsFrom(global)
 
       let token: string | undefined
+      let resolvedBaseUrl: string | undefined
       try {
         const resolved = await resolveToken(resolveOptions)
         token = resolved.token
+        resolvedBaseUrl = resolved.baseUrl
         checks.push({
           name: 'credentials',
           ok: true,
           detail: `${tokenHint(resolved.token)} from ${resolved.source} (profile "${resolved.profile}")`,
         })
+        if (resolved.envFilePath) {
+          checks.push({
+            name: 'env file',
+            ok: true,
+            detail: `${resolved.envFilePath} (ignore it with --no-env-file)`,
+          })
+        }
       } catch (error) {
         checks.push({
           name: 'credentials',
@@ -85,7 +92,10 @@ export function doctorCommand(deps: () => CommandDeps): Command {
       }
 
       const { DEFAULT_BASE_URL, WeeekClient } = await import('../core/api/client.ts')
-      const baseUrl = global.baseUrl ?? DEFAULT_BASE_URL
+      // The same precedence a real request uses. Probing the default while commands talk to a
+      // base URL from `weeek.env` or the profile would make this check answer about a server
+      // nobody is using.
+      const baseUrl = global.baseUrl ?? resolvedBaseUrl ?? DEFAULT_BASE_URL
 
       const { OPERATIONS, OPERATIONS_BY_ID } = await import('../core/api/generated/operations.ts')
       const me = OPERATIONS_BY_ID.get('me')

@@ -123,10 +123,8 @@ export function apiCommand(deps: () => CommandDeps): Command {
       const { resolveToken } = await import('../core/auth/resolve.ts')
       const { WeeekClient } = await import('../core/api/client.ts')
 
-      const resolveOptions: Parameters<typeof resolveToken>[0] = {}
-      if (global.profile !== undefined) resolveOptions.profile = global.profile
-      if (global.tokenFile !== undefined) resolveOptions.tokenFile = global.tokenFile
-      const auth = await resolveToken(resolveOptions)
+      const { resolveOptionsFrom } = await import('../cli/runner.ts')
+      const auth = await resolveToken(resolveOptionsFrom(global))
 
       const baseUrl = global.baseUrl ?? auth.baseUrl
       const client = new WeeekClient({

@@ -21,6 +21,27 @@ export interface GlobalOptions {
   dryRun?: boolean
   /** Bypass local zod validation when the reconstructed spec is stricter than the real API. */
   noValidate?: boolean
+  /** Commander maps `--no-env-file` to `envFile: false`; undefined means "look for it". */
+  envFile?: boolean
+}
+
+/**
+ * The one place that translates global flags into token-resolution options.
+ *
+ * Every command that needs credentials used to build this object itself, and `doctor` quietly
+ * forgot `--token-file` — it reported "no API token" to someone who had just passed one. A
+ * shared builder makes that class of drift impossible: a new field is threaded once.
+ */
+export function resolveOptionsFrom(global: GlobalOptions): {
+  profile?: string
+  tokenFile?: string
+  useEnvFile?: boolean
+} {
+  const options: { profile?: string; tokenFile?: string; useEnvFile?: boolean } = {}
+  if (global.profile !== undefined) options.profile = global.profile
+  if (global.tokenFile !== undefined) options.tokenFile = global.tokenFile
+  if (global.envFile === false) options.useEnvFile = false
+  return options
 }
 
 /** Commander camel-cases flags; this maps a spec parameter name back to its parsed key. */
@@ -233,10 +254,7 @@ export async function runOperation(context: CommandContext, deps: RunDeps): Prom
   const { resolveToken } = await import('../core/auth/resolve.ts')
   const { WeeekClient } = await import('../core/api/client.ts')
 
-  const resolveOptions: Parameters<typeof resolveToken>[0] = {}
-  if (global.profile !== undefined) resolveOptions.profile = global.profile
-  if (global.tokenFile !== undefined) resolveOptions.tokenFile = global.tokenFile
-  const auth = await resolveToken(resolveOptions)
+  const auth = await resolveToken(resolveOptionsFrom(global))
 
   const baseUrl = global.baseUrl ?? auth.baseUrl
   const client = new WeeekClient({

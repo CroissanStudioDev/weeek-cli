@@ -116,9 +116,8 @@ export function authCommand(deps: () => CommandDeps): Command {
       const { tokenHint } = await import('../core/auth/redact.ts')
       const { configPath } = await import('../core/config.ts')
 
-      const resolveOptions: Parameters<typeof resolveToken>[0] = {}
-      if (global.profile !== undefined) resolveOptions.profile = global.profile
-      if (global.tokenFile !== undefined) resolveOptions.tokenFile = global.tokenFile
+      const { resolveOptionsFrom } = await import('../cli/runner.ts')
+      const resolveOptions = resolveOptionsFrom(global)
 
       try {
         const resolved = await resolveToken(resolveOptions)
@@ -128,6 +127,9 @@ export function authCommand(deps: () => CommandDeps): Command {
           // Only ever a hint: enough to tell two tokens apart, never enough to use one.
           token: tokenHint(resolved.token),
           configFile: configPath(),
+          // Named, not merely acknowledged: "which token is this using" must be answerable
+          // without going to look for the file yourself.
+          envFile: resolved.envFilePath ?? null,
           baseUrl: resolved.baseUrl ?? null,
         })
       } catch (error) {

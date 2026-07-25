@@ -21,6 +21,8 @@ export const GLOBAL_FLAGS: ReadonlySet<string> = new Set([
   'yes',
   'dry-run',
   'no-validate',
+  'env-file',
+  'no-env-file',
   'body',
   'file',
   'output-file',

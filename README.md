@@ -48,7 +48,26 @@ shell history and is visible in `ps` to every user on the machine. Use `--stdin`
 
 Resolution order — first hit wins:
 
-`--token-file` / `--stdin` → `WEEEK_TOKEN` → the storage backend declared in your config → error.
+`--token-file` / `--stdin` → `WEEEK_TOKEN` → `weeek.env` → the storage backend in your config → error.
+
+### `weeek.env`, for a project that talks to its own workspace
+
+Put one beside the project and every command in it is authenticated, with no flags:
+
+```bash
+printf 'WEEEK_TOKEN=%s\n' "$TOKEN" > weeek.env && chmod 600 weeek.env
+echo 'weeek.env' >> .gitignore
+```
+
+It is found by walking up from the working directory and the walk **stops at the repository
+root**, so a file belonging to a parent checkout is never in scope. It may set `WEEEK_TOKEN`,
+`WEEEK_BASE_URL` and `WEEEK_PROFILE`, and nothing else — a general dotenv loader would let a
+checked-in file change behaviour in ways the person reading the command line cannot see.
+
+The real environment always wins over the file, so CI is unaffected. `--no-env-file` (or
+`WEEEK_NO_ENV_FILE=1`) ignores it. The file is permission-checked exactly like the config: one
+readable by other users is refused, not warned about. `weeek auth status` and `weeek doctor`
+name the file they used, so "which token is this" never needs guessing.
 
 | Backend | Default | Notes |
 | --- | --- | --- |

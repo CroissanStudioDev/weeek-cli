@@ -17,7 +17,14 @@
  */
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -651,5 +658,122 @@ describe.skipIf(!built)('responses that are not JSON objects', () => {
 
     expect(result.code).toBe(6)
     expect(result.stderr).not.toContain('at ')
+  })
+})
+
+describe.skipIf(!built)('weeek.env', () => {
+  // Discovery depends on the working directory, which only a spawned process really has.
+  function project(contents: string, mode = 0o600): string {
+    // realpath: on macOS the temp directory sits behind a /var → /private/var symlink, and the
+    // spawned process reports the resolved path. Comparing the two forms fails for a reason
+    // that has nothing to do with the feature.
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'weeek-proj-')))
+    writeFileSync(join(dir, 'weeek.env'), contents, { mode })
+    mkdirSync(join(dir, 'apps', 'web'), { recursive: true })
+    return dir
+  }
+
+  function runIn(cwd: string, args: string[], env: Record<string, string> = {}) {
+    const inherited = { ...process.env }
+    for (const name of ['NO_COLOR', 'FORCE_COLOR', 'WEEEK_TOKEN']) delete inherited[name]
+
+    const child = spawn(process.execPath, [CLI, ...args], {
+      cwd,
+      env: { ...inherited, WEEEK_CONFIG_DIR: configDir, ...env },
+    })
+
+    return new Promise<{ code: number; stdout: string; stderr: string }>((done) => {
+      let stdout = ''
+      let stderr = ''
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8')
+      })
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8')
+      })
+      child.on('close', (code) => done({ code: code ?? -1, stdout, stderr }))
+    })
+  }
+
+  it('supplies the token, and says so by name', async () => {
+    const dir = project('WEEEK_TOKEN=tok_from_the_file\n')
+    const { code, stdout } = await runIn(dir, ['auth', 'status', '--json'])
+
+    expect(code).toBe(0)
+    const status = JSON.parse(stdout)
+    expect(status.source).toBe('env-file')
+    expect(status.envFile).toBe(join(dir, 'weeek.env'))
+    // A hint, never the secret.
+    expect(stdout).not.toContain('tok_from_the_file')
+  })
+
+  it('is found from a subdirectory', async () => {
+    const dir = project('WEEEK_TOKEN=tok_from_the_file\n')
+    const { stdout } = await runIn(join(dir, 'apps', 'web'), ['auth', 'status', '--json'])
+
+    expect(JSON.parse(stdout).envFile).toBe(join(dir, 'weeek.env'))
+  })
+
+  it('loses to a token in the real environment', async () => {
+    // Otherwise a checked-in file would quietly override what CI injected.
+    const dir = project('WEEEK_TOKEN=tok_from_the_file\n')
+    const { stdout } = await runIn(dir, ['auth', 'status', '--json'], {
+      WEEEK_TOKEN: 'tok_from_the_env',
+    })
+
+    expect(JSON.parse(stdout).source).toBe('env')
+  })
+
+  it('is ignored with --no-env-file, and with WEEEK_NO_ENV_FILE', async () => {
+    const dir = project('WEEEK_TOKEN=tok_from_the_file\n')
+
+    const flag = await runIn(dir, ['--no-env-file', 'auth', 'status', '--json'])
+    expect(JSON.parse(flag.stdout).source).toBeNull()
+
+    const variable = await runIn(dir, ['auth', 'status', '--json'], { WEEEK_NO_ENV_FILE: '1' })
+    expect(JSON.parse(variable.stdout).source).toBeNull()
+  })
+
+  it('refuses a file other users can read', async () => {
+    const dir = project('WEEEK_TOKEN=tok_from_the_file\n', 0o644)
+    const { stdout } = await runIn(dir, ['auth', 'status', '--json'])
+
+    const status = JSON.parse(stdout)
+    expect(status.source).toBeNull()
+    expect(status.error).toContain('readable by other users')
+    expect(status.error).toContain('chmod 600')
+  })
+
+  it('carries WEEEK_BASE_URL all the way to the request', async () => {
+    // The end-to-end claim: a project file changes where traffic actually goes, and `doctor`
+    // reports that same URL rather than the default it is not using.
+    const dir = project(`WEEEK_TOKEN=tok_from_the_file\nWEEEK_BASE_URL=${stub.baseUrl}\n`)
+    stub.answers(envelope('tags', true))
+
+    const { code, stderr } = await runIn(dir, ['tag', 'list', '--json'])
+
+    expect(code, stderr).toBe(0)
+    expect(stub.seen).toHaveLength(1)
+    expect(stub.seen[0]?.pathname).toBe('/ws/tags')
+  })
+
+  it('pins the profile a project should use', async () => {
+    const dir = project('WEEEK_TOKEN=tok_from_the_file\nWEEEK_PROFILE=work\n')
+    const { stdout } = await runIn(dir, ['auth', 'status', '--json'])
+
+    expect(JSON.parse(stdout).profile).toBe('work')
+    // …but an explicit flag still wins over the file.
+    const explicit = await runIn(dir, ['--profile', 'personal', 'auth', 'status', '--json'])
+    expect(JSON.parse(explicit.stdout).profile).toBe('personal')
+  })
+
+  it('doctor names the file it found', async () => {
+    const dir = project('WEEEK_TOKEN=tok_from_the_file\n')
+    const { stdout } = await runIn(dir, ['doctor', '--json'])
+
+    const checks = JSON.parse(stdout).checks as { name: string; detail: string }[]
+    expect(checks.find((check) => check.name === 'env file')?.detail).toContain(
+      join(dir, 'weeek.env'),
+    )
   })
 })

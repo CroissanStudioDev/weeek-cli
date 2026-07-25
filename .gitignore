@@ -6,3 +6,5 @@ coverage/
 .env
 .env.*
 !.env.example
+# A project-local credentials file the CLI itself reads — see SECURITY.md.
+weeek.env

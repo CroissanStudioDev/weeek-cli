@@ -38,6 +38,7 @@ interface RawGlobals {
   yes?: boolean
   dryRun?: boolean
   validate?: boolean
+  envFile?: boolean
 }
 
 export function createProgram(streams: Streams = defaultStreams()): Command {
@@ -61,6 +62,7 @@ export function createProgram(streams: Streams = defaultStreams()): Command {
     .option('-v, --verbose', 'trace requests to stderr')
     .option('-y, --yes', 'do not prompt for confirmation')
     .option('--dry-run', 'print the request that would be sent, without sending it')
+    .option('--no-env-file', 'ignore a weeek.env found near the working directory')
     .option(
       '--no-validate',
       'skip local request validation (the bundled spec is reconstructed and may be stricter than the API)',
@@ -111,8 +113,9 @@ function globalsFrom(program: Command): { raw: RawGlobals; output: Output; globa
   if (raw.quiet !== undefined) global.quiet = raw.quiet
   if (raw.yes !== undefined) global.yes = raw.yes
   if (raw.dryRun !== undefined) global.dryRun = raw.dryRun
-  // Commander maps --no-validate to validate:false.
+  // Commander maps --no-validate to validate:false, and --no-env-file to envFile:false.
   if (raw.validate === false) global.noValidate = true
+  if (raw.envFile === false) global.envFile = false
 
   return { raw, output, global }
 }

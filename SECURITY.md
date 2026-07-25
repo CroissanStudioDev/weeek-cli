@@ -38,6 +38,15 @@ readable by any process on the machine via `ps`. Accepted instead: `--stdin`,
 read, permissions are checked: a config readable by other users **fails the command** instead of
 emitting a warning nobody reads. (POSIX only; Windows relies on the user profile ACL.)
 
+**Project files.** A `weeek.env` next to a project can supply `WEEEK_TOKEN`, `WEEEK_BASE_URL`
+and `WEEEK_PROFILE` — those three keys only. It is discovered by walking up from the working
+directory, and the walk stops at the repository root so that one project can never pick up
+another's credentials. It gets the same permission check as the config file: readable by others
+means the command fails. The real environment outranks it, so nothing a checked-in file says can
+override what CI injected. `weeek auth status` and `weeek doctor` print the path in use, because
+a credential source that cannot be named is one nobody audits. Add `weeek.env` to `.gitignore`;
+the CLI cannot stop you committing it.
+
 **Keychain storage** is opt-in via `weeek auth login --backend keychain`, backed by
 `@napi-rs/keyring` (macOS Keychain, Secret Service, Windows Credential Manager). `keytar` is not
 used — it is archived and unmaintained.
