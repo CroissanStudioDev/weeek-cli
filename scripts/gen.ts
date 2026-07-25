@@ -24,6 +24,7 @@ import {
   REQUIRED_QUERY_OVERRIDES,
   RESPONSE_SCHEMAS,
 } from '../spec/overrides.ts'
+import { flagName } from '../src/cli/global-flags.ts'
 import { argName, commandFor, type HttpMethod } from '../src/cli/naming.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -75,6 +76,14 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
 // Pass 2: build the registry.
 // ---------------------------------------------------------------------------------------------
 
+export interface BodyFieldMeta {
+  name: string
+  type: string
+  required: boolean
+  cli: string
+  enum?: (string | number)[]
+}
+
 export interface ParamMeta {
   name: string
   in: 'path' | 'query'
@@ -99,7 +108,7 @@ interface OperationMeta {
   body: {
     contentType: 'json' | 'multipart'
     required: boolean
-    fields: { name: string; type: string; required: boolean; cli: string }[]
+    fields: BodyFieldMeta[]
   } | null
   envelopeKey: string | null
   hasMoreKey: string | null
@@ -209,7 +218,7 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
           p.required === true ||
           where === 'path' ||
           (REQUIRED_QUERY_OVERRIDES[key]?.params.includes(p.name) ?? false),
-        cli: where === 'path' ? argName(p.name) : toKebab(p.name),
+        cli: where === 'path' ? argName(p.name) : flagName(toKebab(p.name), 'query'),
       }
       if (schema?.items?.type) meta.itemType = schema.items.type
       if (p.description) meta.description = p.description
@@ -241,12 +250,24 @@ for (const [rawPath, item] of Object.entries(spec.paths as Json)) {
         required: op.requestBody.required === true,
         // Types travel with each field so the CLI knows which flags must be parsed as JSON:
         // an array field handed a bare string is rejected by zod before it ever ships.
-        fields: Object.entries((schema?.properties ?? {}) as Json).map(([name, sub]) => ({
-          name,
-          type: schemaType(sub as Json),
-          required: requiredFields.includes(name),
-          cli: toKebab(name),
-        })),
+        fields: Object.entries((schema?.properties ?? {}) as Json).map(([name, sub]) => {
+          const property = (resolveRef(sub as Json) ?? sub) as Json
+          const field: BodyFieldMeta = {
+            name,
+            type: schemaType(property),
+            required: requiredFields.includes(name),
+            // Renamed when the API's own name is a CLI flag — see global-flags.ts. Renaming
+            // here rather than in the command builder keeps `weeek schema --json`, shell
+            // completion and `--help` naming the same flag.
+            cli: flagName(toKebab(name), 'body'),
+          }
+          // Without this the only hint that `--win-status` takes won|lost|archived was the
+          // rejection message from zod, and only after a wrong guess.
+          if (Array.isArray(property.enum) && property.enum.length > 0) {
+            field.enum = property.enum as (string | number)[]
+          }
+          return field
+        }),
       }
     }
 
@@ -349,7 +370,10 @@ export interface OperationMeta {
       /** JSON Schema type: array/object fields arrive as JSON on the command line */
       readonly type: string
       readonly required: boolean
+      /** kebab-case flag, prefixed with "body-" when the API's own name is a CLI flag */
       readonly cli: string
+      /** Values the spec allows, surfaced in --help so they are discoverable */
+      readonly enum?: readonly (string | number)[]
     }[]
   } | null
   /**

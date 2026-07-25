@@ -38,7 +38,10 @@ export interface OperationMeta {
       /** JSON Schema type: array/object fields arrive as JSON on the command line */
       readonly type: string
       readonly required: boolean
+      /** kebab-case flag, prefixed with "body-" when the API's own name is a CLI flag */
       readonly cli: string
+      /** Values the spec allows, surfaced in --help so they are discoverable */
+      readonly enum?: readonly (string | number)[]
     }[]
   } | null
   /**
@@ -323,7 +326,19 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "type",
           "type": "string",
           "required": true,
-          "cli": "type"
+          "cli": "type",
+          "enum": [
+            "text",
+            "boolean",
+            "datetime",
+            "select",
+            "multiselect",
+            "member",
+            "contact",
+            "link",
+            "approval",
+            "number"
+          ]
         },
         {
           "name": "config",
@@ -417,7 +432,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -537,7 +567,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -1902,7 +1947,12 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "winStatus",
           "type": "string",
           "required": false,
-          "cli": "win-status"
+          "cli": "win-status",
+          "enum": [
+            "won",
+            "lost",
+            "archived"
+          ]
         },
         {
           "name": "description",
@@ -2259,7 +2309,12 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "winStatus",
           "type": "string",
           "required": false,
-          "cli": "win-status"
+          "cli": "win-status",
+          "enum": [
+            "won",
+            "lost",
+            "archived"
+          ]
         },
         {
           "name": "customFields",
@@ -2354,7 +2409,19 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "type",
           "type": "string",
           "required": true,
-          "cli": "type"
+          "cli": "type",
+          "enum": [
+            "text",
+            "boolean",
+            "datetime",
+            "select",
+            "multiselect",
+            "member",
+            "contact",
+            "link",
+            "approval",
+            "number"
+          ]
         },
         {
           "name": "config",
@@ -2503,7 +2570,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -2669,7 +2751,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -3769,7 +3866,12 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "winStatus",
           "type": "string",
           "required": false,
-          "cli": "win-status"
+          "cli": "win-status",
+          "enum": [
+            "won",
+            "lost",
+            "archived"
+          ]
         },
         {
           "name": "description",
@@ -4072,7 +4174,19 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "type",
           "type": "string",
           "required": true,
-          "cli": "type"
+          "cli": "type",
+          "enum": [
+            "text",
+            "boolean",
+            "datetime",
+            "select",
+            "multiselect",
+            "member",
+            "contact",
+            "link",
+            "approval",
+            "number"
+          ]
         },
         {
           "name": "config",
@@ -4169,7 +4283,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -4308,7 +4437,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -4772,7 +4916,19 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "type",
           "type": "string",
           "required": true,
-          "cli": "type"
+          "cli": "type",
+          "enum": [
+            "text",
+            "boolean",
+            "datetime",
+            "select",
+            "multiselect",
+            "member",
+            "contact",
+            "link",
+            "approval",
+            "number"
+          ]
         },
         {
           "name": "config",
@@ -4866,7 +5022,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -5029,7 +5200,22 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color",
+          "enum": [
+            "blue",
+            "light_blue",
+            "dark_purple",
+            "purple",
+            "dark_pink",
+            "pink",
+            "light_pink",
+            "red",
+            "turquoise",
+            "green",
+            "light_green",
+            "dark_yellow",
+            "yellow"
+          ]
         }
       ]
     },
@@ -5368,7 +5554,7 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": false,
-          "cli": "color"
+          "cli": "body-color"
         }
       ]
     },
@@ -5529,7 +5715,7 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "color",
           "type": "string",
           "required": true,
-          "cli": "color"
+          "cli": "body-color"
         }
       ]
     },
@@ -5743,13 +5929,24 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "type",
           "type": "string",
           "required": false,
-          "cli": "type"
+          "cli": "type",
+          "enum": [
+            "action",
+            "meet",
+            "call"
+          ]
         },
         {
           "name": "priority",
           "type": "integer",
           "required": false,
-          "cli": "priority"
+          "cli": "priority",
+          "enum": [
+            0,
+            1,
+            2,
+            3
+          ]
         },
         {
           "name": "customFields",
@@ -6493,13 +6690,24 @@ export const OPERATIONS: readonly OperationMeta[] = [
           "name": "priority",
           "type": "integer",
           "required": false,
-          "cli": "priority"
+          "cli": "priority",
+          "enum": [
+            0,
+            1,
+            2,
+            3
+          ]
         },
         {
           "name": "type",
           "type": "string",
           "required": false,
-          "cli": "type"
+          "cli": "type",
+          "enum": [
+            "action",
+            "meet",
+            "call"
+          ]
         },
         {
           "name": "startDate",
