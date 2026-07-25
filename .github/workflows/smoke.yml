@@ -18,7 +18,7 @@ jobs:
     environment: live-api # gate the secret behind an environment with required reviewers
     if: github.repository_owner != '' && github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
