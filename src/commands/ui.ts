@@ -7,6 +7,8 @@
 
 import { Command } from 'commander'
 import { WeeekError } from '../core/api/errors.ts'
+// Type-only: the registry data itself is still loaded lazily inside the action.
+import type { OperationMeta } from '../core/api/generated/operations.ts'
 import type { CommandDeps } from './auth.ts'
 
 interface Project {
@@ -18,6 +20,91 @@ interface Board {
   id: number
   name: string
   projectId?: number
+}
+
+interface BoardData {
+  title: string
+  project: Project
+  board: Board
+  columns: { id: number; name: string }[]
+  tasks: { id: number; title: string; boardColumnId: number | null }[]
+}
+
+/** Anything with `call` — the real client, or a stub in tests. */
+interface Caller {
+  call<T>(
+    operation: OperationMeta,
+    request: { path: Record<string, string | number>; query: Record<string, unknown> },
+  ): Promise<T | null>
+}
+
+/**
+ * Loads everything the board needs, in the order the API allows.
+ *
+ * Exported and free of Ink so it can be tested: this is where `weeek ui` was broken, asking
+ * `GET /tm/boards` for every board when that endpoint requires `projectId` and answers 422
+ * without it. A component test could not have caught it — it renders fixtures.
+ */
+export async function loadBoardData(
+  client: Caller,
+  operation: (id: string) => OperationMeta,
+  options: { board?: string; project?: string },
+): Promise<BoardData> {
+  const projects =
+    (await client.call<Project[]>(operation('project.list'), { path: {}, query: {} })) ?? []
+
+  const project = options.project
+    ? projects.find((p) => String(p.id) === options.project)
+    : projects[0]
+
+  if (!project) {
+    throw new WeeekError({
+      kind: 'not-found',
+      message: options.project
+        ? `No project with id ${options.project}. Try \`weeek project list\`.`
+        : 'No projects found in this workspace.',
+    })
+  }
+
+  const boards =
+    (await client.call<Board[]>(operation('board.list'), {
+      path: {},
+      query: { projectId: project.id },
+    })) ?? []
+
+  if (boards.length === 0) {
+    throw new WeeekError({ kind: 'not-found', message: `No boards in project "${project.name}".` })
+  }
+
+  const board = options.board ? boards.find((b) => String(b.id) === options.board) : boards[0]
+
+  if (!board) {
+    throw new WeeekError({
+      kind: 'not-found',
+      message:
+        `No board with id ${options.board} in project "${project.name}". ` +
+        `Try \`weeek board list --project-id ${project.id}\`.`,
+    })
+  }
+
+  const [columns, tasks] = await Promise.all([
+    client.call<{ id: number; name: string }[]>(operation('board-column.list'), {
+      path: {},
+      query: { boardId: board.id },
+    }),
+    client.call<{ id: number; title: string; boardColumnId: number | null }[]>(
+      operation('task.list'),
+      { path: {}, query: { boardId: board.id, projectId: project.id } },
+    ),
+  ])
+
+  return {
+    title: `${project.name} · ${board.name}`,
+    project,
+    board,
+    columns: (columns ?? []).map((column) => ({ id: column.id, name: column.name })),
+    tasks: tasks ?? [],
+  }
 }
 
 export function uiCommand(deps: () => CommandDeps): Command {
@@ -60,51 +147,7 @@ export function uiCommand(deps: () => CommandDeps): Command {
         return found
       }
 
-      const boards =
-        (await client.call<Board[]>(operation('board.list'), {
-          path: {},
-          query: {},
-        })) ?? []
-
-      if (boards.length === 0) {
-        throw new WeeekError({
-          kind: 'not-found',
-          message: 'No boards found in this workspace.',
-        })
-      }
-
-      const board = options.board ? boards.find((b) => String(b.id) === options.board) : boards[0]
-
-      if (!board) {
-        throw new WeeekError({
-          kind: 'not-found',
-          message: `No board with id ${options.board}. Try \`weeek board list\`.`,
-        })
-      }
-
-      const [columns, tasks, projects] = await Promise.all([
-        client.call<{ id: number; name: string; boardId?: number }[]>(
-          operation('board-column.list'),
-          {
-            path: {},
-            query: { boardId: board.id },
-          },
-        ),
-        client.call<{ id: number; title: string; boardColumnId: number | null }[]>(
-          operation('task.list'),
-          {
-            path: {},
-            query: {
-              boardId: board.id,
-              ...(options.project ? { projectId: Number(options.project) } : {}),
-            },
-          },
-        ),
-        client.call<Project[]>(operation('project.list'), { path: {}, query: {} }),
-      ])
-
-      const project = projects?.find((p) => p.id === board.projectId)
-      const title = `${project ? `${project.name} · ` : ''}${board.name}`
+      const { title, columns, tasks } = await loadBoardData(client, operation, options)
 
       const [{ render }, { createElement }, { Board: BoardView }] = await Promise.all([
         import('ink'),
