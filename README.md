@@ -67,10 +67,10 @@ Path parameters are positional, everything else is a flag:
 ```bash
 weeek project list --output table
 weeek task get 8123
-weeek task create --title "Write the changelog" --project-id 4
+weeek task create --title "Write the changelog" --locations '[{"projectId":4,"boardColumnId":null}]'
 weeek task complete 8123
 weeek task list --project-id 4 --all-pages --json      # follows every page
-weeek crm deal list --json | jq '.[] | {id, title, price}'
+weeek crm status deal list 12 --json | jq '.[] | {id, title, price}'
 weeek attachment download f1e2d3 --output-file logo.png
 ```
 
@@ -83,7 +83,9 @@ Ten things worth knowing:
 4. `--dry-run` prints the request that would be sent, without sending it.
 5. Request bodies are validated locally with zod before the network. `--no-validate` skips it —
    useful, since the reconstructed spec can be stricter than the API.
-6. `--body '<json>'` is merged over the generated flags for anything they cannot express.
+6. `--body '<json>'` is merged over the generated flags for anything they cannot express. A
+   field whose API name is already a CLI flag is offered prefixed — `--body-color`, not
+   `--color` — rather than being dropped.
 7. `delete` commands confirm on a TTY and require `--yes` when not interactive.
 8. `--verbose` traces requests to stderr with the token masked.
 9. `weeek api GET /tm/tasks --query projectId=4` is the escape hatch for anything unmapped.

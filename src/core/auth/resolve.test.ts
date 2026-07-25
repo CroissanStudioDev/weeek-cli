@@ -1,5 +1,5 @@
 import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { platform, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { WeeekError } from '../api/errors.ts'
@@ -97,7 +97,10 @@ describe('token precedence', () => {
   })
 })
 
-describe('file permissions', () => {
+// POSIX modes only. Windows has no equivalent — `chmod` there is a near no-op and the ACL a
+// file inherits is not a mode — so `config.ts` deliberately skips both the chmod and the check
+// on win32, and asserting either here would test the platform, not the code.
+describe.skipIf(platform() === 'win32')('file permissions', () => {
   it('writes the config as owner-only', async () => {
     await writeConfig(
       { version: 1, defaultProfile: 'default', profiles: { default: { backend: 'file' } } },
@@ -120,9 +123,20 @@ describe('file permissions', () => {
     expect((error as WeeekError).message).toContain('readable by other users')
     expect((error as WeeekError).message).toContain('chmod 600')
   })
+})
 
+describe('file permissions, everywhere', () => {
   it('accepts a missing file as a non-problem', async () => {
     await expect(assertPrivate(join(dir, 'absent.json'))).resolves.toBeUndefined()
+  })
+
+  it('never rejects a config it just wrote', async () => {
+    // The round trip is the invariant that has to hold on every platform: whatever mode
+    // `writeConfig` leaves behind, `readConfig` must accept it. On Windows both sides are
+    // no-ops; on POSIX both are 0600. A one-sided change breaks this.
+    await seedProfile('default', { token: 'from_config_123', backend: 'file' })
+
+    await expect(readConfig(env)).resolves.toMatchObject({ version: 1 })
   })
 })
 

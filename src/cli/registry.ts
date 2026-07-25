@@ -16,6 +16,8 @@ import { PAGINATOR_FLAG } from '../../spec/overrides.ts'
 import type { OperationMeta, ParamMeta } from '../core/api/generated/operations.ts'
 import { NAMESPACES, OPERATIONS } from '../core/api/generated/operations.ts'
 
+export { GLOBAL_FLAGS } from './global-flags.ts'
+
 export interface CommandContext {
   operation: OperationMeta
   /** Positional path arguments, in declaration order. */
@@ -24,24 +26,6 @@ export interface CommandContext {
 }
 
 export type OperationRunner = (context: CommandContext) => Promise<void>
-
-/** Flags owned by the CLI itself; an API parameter of the same name would shadow them. */
-export const GLOBAL_FLAGS = new Set([
-  'profile',
-  'token-file',
-  'config-dir',
-  'output',
-  'json',
-  'color',
-  'no-color',
-  'quiet',
-  'verbose',
-  'yes',
-  'dry-run',
-  'base-url',
-  'help',
-  'version',
-])
 
 function flagFor(param: ParamMeta): string {
   // `all-pages` is the CLI paginator; `--all` stays a passthrough because GET /tm/tasks really
@@ -77,7 +61,6 @@ export function configureOperation(
 
   for (const param of operation.params) {
     if (param.in !== 'query') continue
-    if (GLOBAL_FLAGS.has(param.cli)) continue
     const option = new Option(flagFor(param), describe(param))
     if (param.enum) option.choices(param.enum.map(String))
     command.addOption(option)
@@ -88,13 +71,16 @@ export function configureOperation(
       command.option('--file <path...>', 'file(s) to upload')
     }
     for (const field of operation.body.fields) {
-      if (GLOBAL_FLAGS.has(field.cli)) continue
       const structured = field.type === 'array' || field.type === 'object'
       const placeholder = structured ? '<json>' : '<value>'
       const hint = [structured ? 'JSON' : field.type, field.required ? 'required' : null]
         .filter(Boolean)
         .join(', ')
-      command.option(`--${field.cli} ${placeholder}`, `${field.name} (${hint})`)
+      // Enum members go in the description rather than into Option.choices(): the spec's body
+      // enums are sometimes narrower than what the API accepts, and a wrong `choices` list
+      // refuses a value locally with no way past it except `--body`.
+      const values = field.enum ? ` — one of: ${field.enum.join(', ')}` : ''
+      command.option(`--${field.cli} ${placeholder}`, `${field.name} (${hint})${values}`)
     }
     // Escape hatch for anything the flattened flags cannot express (nested objects, arrays).
     command.option('--body <json>', 'raw JSON request body, merged over the flags above')

@@ -64,3 +64,44 @@ describe('query collection', () => {
     expect(collectQuery(op('task.list'), {})).toEqual({})
   })
 })
+
+describe('enums the spec only half-declares', () => {
+  it('accepts the documented `-` prefix for descending sort', () => {
+    // The description says "prepend a minus sign … for example `-name`" while the enum lists
+    // only the ascending forms. Commander validates against the enum, so descending sort used
+    // to be rejected outright — reachable only through `weeek api`.
+    const sortBy = op('task.list').params.find((param) => param.name === 'sortBy')
+
+    expect(sortBy?.enum).toContain('created')
+    expect(sortBy?.enum).toContain('-created')
+  })
+
+  it('prefixes the sort enums and nothing else', () => {
+    // Partitioned over the whole registry, so a spec refresh cannot quietly add a fifth sort
+    // parameter that keeps the old behaviour — or grant the prefix to a filter that rejects it.
+    // As of the shipped spec every enum-bearing query parameter happens to be a sort parameter
+    // (tasks, contacts, organizations, deals), so the second group is legitimately empty.
+    const withEnum = [...OPERATIONS_BY_ID.values()].flatMap((operation) =>
+      operation.params.filter((param) => param.enum !== undefined),
+    )
+    const documented = withEnum.filter((param) => /minus sign/i.test(param.description ?? ''))
+
+    expect(documented.length).toBe(4)
+    for (const param of withEnum) {
+      const prefixed = param.enum?.some((value) => String(value).startsWith('-')) ?? false
+      expect(prefixed, param.name).toBe(documented.includes(param))
+    }
+  })
+
+  it('keeps numeric enums numeric so the flag is usable at all', async () => {
+    // `priority` is `enum: [0,1,2,3]` on an integer field. Generating z.enum(["0",…]) from it
+    // contradicted the coercion the CLI applies to an integer flag, and `--priority 2` failed
+    // local validation — the field could only be set through `--body`.
+    const { BODY_SCHEMAS } = await import('../core/api/generated/schemas.ts')
+    const schema = BODY_SCHEMAS['task.update']
+
+    expect(schema?.safeParse({ priority: 2 }).success).toBe(true)
+    expect(schema?.safeParse({ priority: '2' }).success).toBe(false)
+    expect(schema?.safeParse({ priority: 9 }).success).toBe(false)
+  })
+})

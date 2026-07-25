@@ -25,16 +25,17 @@ const configDir = built ? mkdtempSync(join(tmpdir(), 'weeek-e2e-')) : ''
 const ESC = String.fromCharCode(27)
 
 function run(args: string[], env: Record<string, string> = {}) {
+  // The colour variables are *removed*, not blanked. Node treats an empty `NO_COLOR` alongside an
+  // empty `FORCE_COLOR` as both being set and prints a warning to stderr about it — which lands
+  // in the output these tests assert on, and only on runners where the harness happens to spawn
+  // Node. Inheriting the CI runner's own values is not an option either, so: a clean slate,
+  // minus whatever the case sets explicitly.
+  const inherited = { ...process.env }
+  for (const name of ['NO_COLOR', 'FORCE_COLOR', 'WEEEK_TOKEN']) delete inherited[name]
+
   const result = spawnSync(process.execPath, [CLI, ...args], {
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      WEEEK_CONFIG_DIR: configDir,
-      WEEEK_TOKEN: '',
-      NO_COLOR: '',
-      FORCE_COLOR: '',
-      ...env,
-    },
+    env: { ...inherited, WEEEK_CONFIG_DIR: configDir, ...env },
   })
   return { code: result.status ?? -1, stdout: result.stdout, stderr: result.stderr }
 }
