@@ -58,7 +58,7 @@ jobs:
       # filename, and requires a GitHub-hosted runner.
       - name: changesets
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           version: bunx changeset version
           # The build runs *inside* the publish input on purpose. This input only executes on
